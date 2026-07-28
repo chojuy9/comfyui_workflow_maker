@@ -1,0 +1,128 @@
+{
+  "1": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "anima-base-v1.0.safetensors",
+      "weight_dtype": "default"
+    },
+    "_meta": {
+      "title": "Anima diffusion model"
+    }
+  },
+  "2": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "qwen_3_06b_base.safetensors",
+      "type": "stable_diffusion",
+      "device": "default"
+    },
+    "_meta": {
+      "title": "Anima Qwen text encoder"
+    }
+  },
+  "3": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "qwen_image_vae.safetensors"
+    },
+    "_meta": {
+      "title": "Anima VAE"
+    }
+  },
+  "4": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "masterpiece, best quality, 1girl, solo",
+      "clip": [
+        "2",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Positive prompt"
+    }
+  },
+  "5": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "worst quality, low quality, text, watermark",
+      "clip": [
+        "2",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Negative prompt"
+    }
+  },
+  "6": {
+    "class_type": "EmptyLatentImage",
+    "inputs": {
+      "width": 1216,
+      "height": 832,
+      "batch_size": 1
+    },
+    "_meta": {
+      "title": "3:2 가로"
+    }
+  },
+  "7": {
+    "class_type": "KSampler",
+    "inputs": {
+      "seed": 1234567890,
+      "steps": 35,
+      "cfg": 4.5,
+      "sampler_name": "er_sde",
+      "scheduler": "normal",
+      "denoise": 1,
+      "model": [
+        "1",
+        0
+      ],
+      "positive": [
+        "4",
+        0
+      ],
+      "negative": [
+        "5",
+        0
+      ],
+      "latent_image": [
+        "6",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Sampler"
+    }
+  },
+  "8": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "7",
+        0
+      ],
+      "vae": [
+        "3",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Decode image"
+    }
+  },
+  "9": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "chatos/anima_base_10/landscape",
+      "images": [
+        "8",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Save result"
+    }
+  }
+}

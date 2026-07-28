@@ -1,0 +1,107 @@
+{
+  "1": {
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": {
+      "ckpt_name": "waiIllustriousSDXL_v170.safetensors"
+    },
+    "_meta": {
+      "title": "WAI Illustrious SDXL v17.0"
+    }
+  },
+  "2": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "masterpiece, best quality, 1girl, solo",
+      "clip": [
+        "1",
+        1
+      ]
+    },
+    "_meta": {
+      "title": "Positive prompt"
+    }
+  },
+  "3": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "worst quality, low quality, text, watermark",
+      "clip": [
+        "1",
+        1
+      ]
+    },
+    "_meta": {
+      "title": "Negative prompt"
+    }
+  },
+  "4": {
+    "class_type": "EmptyLatentImage",
+    "inputs": {
+      "width": 832,
+      "height": 1216,
+      "batch_size": 1
+    },
+    "_meta": {
+      "title": "2:3 세로"
+    }
+  },
+  "5": {
+    "class_type": "KSampler",
+    "inputs": {
+      "seed": 1234567890,
+      "steps": 20,
+      "cfg": 10,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "denoise": 1,
+      "model": [
+        "1",
+        0
+      ],
+      "positive": [
+        "2",
+        0
+      ],
+      "negative": [
+        "3",
+        0
+      ],
+      "latent_image": [
+        "4",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Sampler"
+    }
+  },
+  "6": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "5",
+        0
+      ],
+      "vae": [
+        "1",
+        2
+      ]
+    },
+    "_meta": {
+      "title": "Decode image"
+    }
+  },
+  "7": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "chatos/wai_v17/portrait",
+      "images": [
+        "6",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Save result"
+    }
+  }
+}

@@ -1,0 +1,38 @@
+{
+  // Merge these keys into the existing wrangler configuration.
+  "compatibility_date": "2026-07-27",
+  "compatibility_flags": ["nodejs_compat"],
+  "r2_buckets": [
+    {
+      "binding": "CHATOS_IMAGES",
+      "bucket_name": "chatos-images",
+      "preview_bucket_name": "chatos-images-preview"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      { "name": "IMAGE_QUEUE", "class_name": "ImageQueue" },
+      { "name": "IMAGE_QUOTA", "class_name": "ImageQuota" }
+    ]
+  },
+  "services": [
+    {
+      "binding": "IMAGE_MODERATION",
+      "service": "chatos-image-moderation"
+    }
+  ],
+  "vars": {
+    "ENVIRONMENT": "production",
+    "IMAGE_MODERATION_MODE": "enforce"
+  },
+  "migrations": [
+    {
+      "tag": "image-v1",
+      "new_sqlite_classes": ["ImageQueue", "ImageQuota"]
+    }
+  ],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  }
+}

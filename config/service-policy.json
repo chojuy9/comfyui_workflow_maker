@@ -1,0 +1,104 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-07-27",
+  "monetization": {
+    "current": "none",
+    "freeAccess": true,
+    "donationsEnabled": false,
+    "futurePatreonPurpose": ["llm", "embeddings"],
+    "animaLicenseReviewRequiredBeforeAnyPlatformFunding": true
+  },
+  "generation": {
+    "gpuBatchSize": 1,
+    "maxImagesPerRequest": 4,
+    "perUserRunning": 1,
+    "perUserQueued": 4,
+    "splitMultiImageRequestIntoJobs": true,
+    "maxEnabledLorasPerJob": 3
+  },
+  "quota": {
+    "accountingScale": 2,
+    "displayUnit": "images",
+    "costUnits": {"txt2img": 2, "img2img": 3},
+    "dailyLimitUnits": 100,
+    "weeklyLimitUnits": 500,
+    "dailyDisplayLimit": 50,
+    "weeklyDisplayLimit": 250
+  },
+  "lora": {
+    "autoInsertTriggerSettingVisible": true,
+    "autoInsertTriggerDefault": true,
+    "showInsertedTriggers": true
+  },
+  "img2img": {
+    "enabled": true,
+    "canDisablePerRequest": true,
+    "denoiseAdjustable": true,
+    "defaultFitMode": "center_crop",
+    "allowedFitModes": ["center_crop", "contain"],
+    "upload": {
+      "maxBytes": 10485760,
+      "maxWidth": 4096,
+      "maxHeight": 4096,
+      "maxPixels": 16777216,
+      "allowedFormats": ["png", "jpeg", "webp", "avif"],
+      "deleteSourceAfterJob": true,
+      "normalizeBeforeComfy": true
+    }
+  },
+  "upscale": {
+    "enabled": true,
+    "optionalPerRequest": true,
+    "outputScale": 2,
+    "modelSelection": "benchmark_on_rtx3090"
+  },
+  "output": {
+    "defaultFormat": "png",
+    "allowedFormats": ["png", "webp"]
+  },
+  "prompt": {
+    "positiveMaxTokens": 1024,
+    "negativeMaxTokens": 2048,
+    "tokenizerByModelFamily": true,
+    "presetRetention": "indefinite",
+    "maxPresetsPerUser": 50
+  },
+  "storage": {
+    "r2Bucket": "chatos-images",
+    "bucketPublic": false,
+    "defaultImageRetentionDays": 30,
+    "generationHistoryRetentionDays": 7,
+    "savedGallery": {"maxPerUser": 15, "retention": "indefinite"},
+    "pinnedHistory": {"maxPerUser": 10, "retention": "indefinite"},
+    "deduplicateObjects": true,
+    "referenceCountProtectedObjects": true,
+    "authenticatedWorkerDelivery": true
+  },
+  "moderation": {
+    "adultContent": "partially_allowed",
+    "blockedCategories": [
+      "sexual_content_involving_minors",
+      "real_person_content",
+      "illegal_content"
+    ],
+    "realPersonPolicy": "strict_block",
+    "systemPromptRequiresOwnerReview": true,
+    "moderationPromptRequiresOwnerReview": true,
+    "bypassIsPolicyViolation": true
+  },
+  "gpuOperation": {
+    "initialMode": "always_on_trial",
+    "plannedMode": "scheduled_hours",
+    "spotRecoveryPhase1": "one_command_rebuild_after_manual_rental",
+    "automaticRerental": "future_phase"
+  },
+  "network": {
+    "privateGpuOrigin": "img.chatos.page",
+    "userFacing": false,
+    "workerOnly": true
+  },
+  "ui": {
+    "visualStyle": "existing_chatos",
+    "controlDensity": "novelai_like"
+  }
+}

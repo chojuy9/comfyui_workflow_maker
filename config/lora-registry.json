@@ -1,0 +1,166 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-07-27",
+  "entries": [
+    {
+      "id": "anima_atomsphere_style_v12",
+      "label": "Atomsphere Style",
+      "family": "anima",
+      "enabled": true,
+      "source": {
+        "provider": "civitai",
+        "modelId": 2713337,
+        "modelVersionId": 3064694,
+        "page": "https://civitai.red/models/2713337/atomsphere-style-anima-lora?modelVersionId=3064694",
+        "download": "https://civitai.com/api/download/models/3064694"
+      },
+      "file": {
+        "name": "atomsphere_style_v1.2-anima-e20.safetensors",
+        "sha256": "9726c61539ff365747b535715e95f45fc0df6321fdaf25cc3d5f4e829fcc3be9"
+      },
+      "triggerWords": ["atomsphere_style"],
+      "strength": {
+        "defaultWhenEnabled": 0.8,
+        "min": 0.0,
+        "max": 1.0,
+        "step": 0.05,
+        "status": "verify_on_gpu"
+      },
+      "civitaiPermissions": {
+        "allowNoCredit": true,
+        "allowCommercialUse": ["Image", "RentCivit", "Rent"],
+        "allowDerivatives": true,
+        "allowDifferentLicense": true
+      }
+    },
+    {
+      "id": "anima_context_detailer_base10",
+      "label": "Anima Detail Tweaker — Context",
+      "family": "anima",
+      "enabled": true,
+      "source": {
+        "provider": "civitai",
+        "modelId": 2620171,
+        "modelVersionId": 2945421,
+        "page": "https://civitai.com/models/2620171/anima-detail-tweaker?modelVersionId=2945421",
+        "download": "https://civitai.com/api/download/models/2945421"
+      },
+      "file": {
+        "name": "anima_context_detailer_base10.safetensors",
+        "sha256": "aaaca6107e97bf98d03482464583a0d89fbf14acec8e01685682f11a02915d22"
+      },
+      "triggerWords": [],
+      "strength": {
+        "defaultWhenEnabled": 0.5,
+        "min": -0.5,
+        "max": 0.5,
+        "step": 0.05,
+        "status": "creator_documented"
+      },
+      "civitaiPermissions": {
+        "allowNoCredit": false,
+        "allowCommercialUse": ["Image", "RentCivit", "Rent"],
+        "allowDerivatives": true,
+        "allowDifferentLicense": true
+      }
+    },
+    {
+      "id": "anima_quality_enhance_base10",
+      "label": "Anima Quality Enhance Slider",
+      "family": "anima",
+      "enabled": true,
+      "source": {
+        "provider": "civitai",
+        "modelId": 2612570,
+        "modelVersionId": 2945328,
+        "page": "https://civitai.red/models/2612570/anima-quality-enhance-slider?modelVersionId=2945328",
+        "download": "https://civitai.com/api/download/models/2945328"
+      },
+      "file": {
+        "name": "anima_base_slider_step800.safetensors",
+        "sha256": "4a0dc474d26f9ebbae8bf9315da0ae9488f6428f696e21fe8f9db7f970246c82"
+      },
+      "triggerWords": [],
+      "strength": {
+        "defaultWhenEnabled": 1.0,
+        "min": 1.0,
+        "max": 3.0,
+        "step": 0.1,
+        "status": "creator_documented"
+      },
+      "civitaiPermissions": {
+        "allowNoCredit": false,
+        "allowCommercialUse": ["RentCivit", "Rent"],
+        "allowDerivatives": true,
+        "allowDifferentLicense": true
+      }
+    },
+    {
+      "id": "wai_748cm_style_v1",
+      "label": "748cm Style",
+      "family": "sdxl",
+      "enabled": true,
+      "source": {
+        "provider": "civitai",
+        "modelId": 943607,
+        "modelVersionId": 1056404,
+        "page": "https://civitai.com/models/943607/748cm-or-style-for-illustriousnoobai-075?modelVersionId=1056404",
+        "download": "https://civitai.com/api/download/models/1056404"
+      },
+      "file": {
+        "name": "748cmSDXL.safetensors",
+        "sha256": "85715eb695d5e42cc613ada4b12bb87cbeb1b6ef4f11142bb30774f8f26f261a"
+      },
+      "triggerWords": ["748cmstyle"],
+      "strength": {
+        "defaultWhenEnabled": 0.8,
+        "min": 0.0,
+        "max": 1.0,
+        "step": 0.05,
+        "status": "verify_on_gpu"
+      },
+      "civitaiPermissions": {
+        "allowNoCredit": true,
+        "allowCommercialUse": ["RentCivit"],
+        "allowDerivatives": true,
+        "allowDifferentLicense": true
+      }
+    },
+    {
+      "id": "wai_teddy_lingerie_booru",
+      "label": "Teddy Lingerie",
+      "family": "sdxl",
+      "enabled": true,
+      "nsfw": true,
+      "source": {
+        "provider": "civitai",
+        "modelId": 1617068,
+        "modelVersionId": 1830057,
+        "page": "https://civitai.red/models/1617068/teddy-lingerie-clothing?modelVersionId=1830057",
+        "download": "https://civitai.com/api/download/models/1830057"
+      },
+      "file": {
+        "name": "teddy-lingerie-illustriousxl-lora-nochekaiser.safetensors",
+        "sha256": "cf0b108bcb747de8fe33c09febb5437b2acc789e1b487a23cc591ff52083747b"
+      },
+      "triggerWords": [
+        "teddy lingerie",
+        "teddy (lingerie)",
+        "lace-trimmed leotard"
+      ],
+      "strength": {
+        "defaultWhenEnabled": 0.8,
+        "min": 0.0,
+        "max": 1.0,
+        "step": 0.05,
+        "status": "verify_on_gpu"
+      },
+      "civitaiPermissions": {
+        "allowNoCredit": true,
+        "allowCommercialUse": ["RentCivit"],
+        "allowDerivatives": true,
+        "allowDifferentLicense": true
+      }
+    }
+  ]
+}

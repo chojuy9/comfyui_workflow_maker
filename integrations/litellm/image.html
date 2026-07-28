@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>이미지 생성 · chatos.page</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/image.css">
+</head>
+<body>
+  <header>
+    <div class="hrow">
+      <a class="brand" href="/">chatos.page</a>
+      <nav aria-label="주 메뉴">
+        <a href="/">홈</a><a href="/models.html">모델</a><a class="on" href="/image.html">이미지</a>
+        <a href="/usage.html">사용량</a><a href="/docs.html">문서</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="image-app">
+    <form id="generation-form" class="control-panel">
+      <div class="panel-heading">
+        <div><h1>이미지 생성</h1><p>한 번에 한 장씩 대기열에서 처리됩니다.</p></div>
+        <span id="gpu-status" class="status"><i class="dot"></i>서버 확인 중</span>
+      </div>
+
+      <fieldset>
+        <legend>모델</legend>
+        <div id="model-options" class="choice-grid" aria-label="모델 선택"></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>캔버스</legend>
+        <div id="preset-options" class="choice-grid three" aria-label="화면 비율 선택"></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>프롬프트</legend>
+        <div class="preset-row">
+          <select id="prompt-preset" aria-label="저장한 프롬프트"><option value="">저장한 프롬프트 불러오기</option></select>
+          <button id="save-preset" type="button" class="btn ghost sm">현재 설정 저장</button>
+          <button id="delete-preset" type="button" class="btn danger sm" disabled>삭제</button>
+        </div>
+        <label for="positive">Positive <span id="positive-count">0 / 1024 tokens</span></label>
+        <textarea id="positive" rows="7" required placeholder="만들고 싶은 장면을 입력하세요."></textarea>
+        <div id="inserted-triggers" class="trigger-preview hidden"></div>
+        <label for="negative">Negative <span id="negative-count">0 / 2048 tokens</span></label>
+        <textarea id="negative" rows="4" placeholder="제외할 요소를 입력하세요.">worst quality, low quality, text, watermark</textarea>
+        <div class="inline-check">
+          <input id="auto-triggers" type="checkbox" checked>
+          <label for="auto-triggers">LoRA 트리거를 Positive에 자동 입력하고 제출 전 표시</label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <div class="legend-row"><legend>LoRA</legend><span id="lora-limit">0 / 3</span></div>
+        <div id="lora-options" class="lora-list"></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>샘플링</legend>
+        <div class="field-grid">
+          <label>Sampler<select id="sampler"></select></label>
+          <label>Scheduler<select id="scheduler"></select></label>
+          <label>Steps<div class="range-row"><input id="steps" type="range"><output id="steps-value"></output></div></label>
+          <label>CFG<div class="range-row"><input id="cfg" type="range"><output id="cfg-value"></output></div></label>
+        </div>
+        <p id="cfg-warning" class="control-warning hidden"></p>
+        <label for="seed">Seed · 정확히 10자리</label>
+        <div class="seed-row">
+          <input id="seed" type="text" inputmode="numeric" pattern="[1-9][0-9]{9}" maxlength="10">
+          <button id="random-seed" type="button" class="btn ghost sm">무작위</button>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <div class="toggle-heading">
+          <div><legend>I2I</legend><small>사용 시 할당량 1.5장</small></div>
+          <input id="i2i-enabled" class="switch" type="checkbox" role="switch">
+        </div>
+        <div id="i2i-controls" class="conditional hidden">
+          <label for="source-image">원본 · 10MB 이하, 최대 4K, PNG/JPG/WebP/AVIF</label>
+          <input id="source-image" type="file" accept="image/png,image/jpeg,image/webp,image/avif">
+          <div class="field-grid">
+            <label>맞춤 방식<select id="fit-mode"><option value="center_crop">중앙 자르기</option><option value="contain">전체 맞춤</option></select></label>
+            <label>Denoise<div class="range-row"><input id="denoise" type="range" min=".05" max="1" step=".05" value=".65"><output id="denoise-value">0.65</output></div></label>
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>출력</legend>
+        <div class="field-grid">
+          <label>파일 형식<select id="output-format"><option value="png">PNG</option><option value="webp">WebP</option></select></label>
+          <div class="inline-check upscale-check"><input id="upscale" type="checkbox"><label for="upscale">Real-ESRGAN 2× 업스케일</label></div>
+        </div>
+      </fieldset>
+
+      <div class="submit-dock">
+        <div>
+          <strong id="cost-label">할당량 1장</strong>
+          <span id="quota-label">오늘 — / 50 · 이번 주 — / 250</span>
+        </div>
+        <button id="submit-button" class="btn primary" type="submit">대기열에 추가</button>
+      </div>
+      <div id="form-message" class="msg" role="status" aria-live="polite"></div>
+    </form>
+
+    <section class="result-panel" aria-label="생성 결과">
+      <div id="empty-result" class="result-empty">
+        <div class="result-mark">1024</div>
+        <h2>결과가 여기에 표시됩니다</h2>
+        <p>모델과 프롬프트를 설정한 다음 대기열에 추가하세요.</p>
+      </div>
+      <div id="job-state" class="job-state hidden">
+        <span class="spin dark"></span><strong id="job-title">대기 중</strong>
+        <p id="job-detail"></p>
+      </div>
+      <figure id="result" class="hidden">
+        <img id="result-image" alt="생성된 이미지">
+        <figcaption>
+          <div><strong id="result-model"></strong><span id="result-meta"></span></div>
+          <div class="result-actions">
+            <button id="pin-result" type="button" class="btn ghost sm">기록 보관</button>
+            <button id="save-result" type="button" class="btn ghost sm">갤러리 보관</button>
+            <a id="download-result" class="btn primary sm" download>다운로드</a>
+          </div>
+        </figcaption>
+      </figure>
+    </section>
+  </main>
+  <div id="toast" class="toast" role="status"></div>
+  <script type="module" src="/image.js"></script>
+</body>
+</html>

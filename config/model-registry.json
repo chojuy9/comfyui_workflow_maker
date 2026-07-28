@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-07-27",
+  "files": [
+    {
+      "id": "wai_v17",
+      "path": "checkpoints/waiIllustriousSDXL_v170.safetensors",
+      "url": "https://civitai.com/api/download/models/2883731",
+      "sha256": "f116b0c78ff441467b0cdc8f1936e1ed18ea31e9997c7b132b1b8db533f0bd04",
+      "licenseReview": "required"
+    },
+    {
+      "id": "anima_diffusion",
+      "path": "diffusion_models/anima-base-v1.0.safetensors",
+      "url": "https://huggingface.co/circlestone-labs/Anima/resolve/38371ccdbd541b114a9ddbc6b77cb31dae2c4027/split_files/diffusion_models/anima-base-v1.0.safetensors",
+      "sha256": "bd43b7cffe1ed1153d9c41e7beb2f18cb1273eafbaa3af3edd6a173dc90a006e",
+      "licenseReview": "required"
+    },
+    {
+      "id": "anima_clip",
+      "path": "text_encoders/qwen_3_06b_base.safetensors",
+      "url": "https://huggingface.co/circlestone-labs/Anima/resolve/38371ccdbd541b114a9ddbc6b77cb31dae2c4027/split_files/text_encoders/qwen_3_06b_base.safetensors",
+      "sha256": "cd2a512003e2f9f3cd3c32a9c3573f820bb28c940f73c57b1ddaa983d9223eba",
+      "licenseReview": "required"
+    },
+    {
+      "id": "anima_vae",
+      "path": "vae/qwen_image_vae.safetensors",
+      "url": "https://huggingface.co/circlestone-labs/Anima/resolve/38371ccdbd541b114a9ddbc6b77cb31dae2c4027/split_files/vae/qwen_image_vae.safetensors",
+      "sha256": "a70580f0213e67967ee9c95f05bb400e8fb08307e017a924bf3441223e023d1f",
+      "licenseReview": "required"
+    },
+    {
+      "id": "upscale_realesrgan_x2plus",
+      "path": "upscale_models/RealESRGAN_x2plus.pth",
+      "url": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.1/RealESRGAN_x2plus.pth",
+      "sha256": "49fafd45f8fd7aa8d31ab2a22d14d91b536c34494a5cfe31eb5d89c2fa266abb",
+      "licenseReview": "verified_bsd_3_clause"
+    },
+    {
+      "id": "anima_atomsphere_style_v12",
+      "path": "loras/atomsphere_style_v1.2-anima-e20.safetensors",
+      "url": "https://civitai.com/api/download/models/3064694",
+      "sha256": "9726c61539ff365747b535715e95f45fc0df6321fdaf25cc3d5f4e829fcc3be9",
+      "licenseReview": "required"
+    },
+    {
+      "id": "anima_context_detailer_base10",
+      "path": "loras/anima_context_detailer_base10.safetensors",
+      "url": "https://civitai.com/api/download/models/2945421",
+      "sha256": "aaaca6107e97bf98d03482464583a0d89fbf14acec8e01685682f11a02915d22",
+      "licenseReview": "required"
+    },
+    {
+      "id": "anima_quality_enhance_base10",
+      "path": "loras/anima_base_slider_step800.safetensors",
+      "url": "https://civitai.com/api/download/models/2945328",
+      "sha256": "4a0dc474d26f9ebbae8bf9315da0ae9488f6428f696e21fe8f9db7f970246c82",
+      "licenseReview": "required"
+    },
+    {
+      "id": "wai_748cm_style_v1",
+      "path": "loras/748cmSDXL.safetensors",
+      "url": "https://civitai.com/api/download/models/1056404",
+      "sha256": "85715eb695d5e42cc613ada4b12bb87cbeb1b6ef4f11142bb30774f8f26f261a",
+      "licenseReview": "required"
+    },
+    {
+      "id": "wai_teddy_lingerie_booru",
+      "path": "loras/teddy-lingerie-illustriousxl-lora-nochekaiser.safetensors",
+      "url": "https://civitai.com/api/download/models/1830057",
+      "sha256": "cf0b108bcb747de8fe33c09febb5437b2acc789e1b487a23cc591ff52083747b",
+      "licenseReview": "required"
+    },
+    {
+      "id": "clip_tokenizer",
+      "path": "tokenizers/clip_tokenizer.json",
+      "url": "https://huggingface.co/openai/clip-vit-large-patch14/resolve/main/tokenizer.json",
+      "sha256": "a83e0809aa4c3af7208b2df632a7a69668c6d48775b3c3fe4e1b1199d1f8b8f4",
+      "licenseReview": "tokenizer_only"
+    },
+    {
+      "id": "qwen3_tokenizer",
+      "path": "tokenizers/qwen3_tokenizer.json",
+      "url": "https://huggingface.co/Qwen/Qwen3-0.6B-Base/resolve/main/tokenizer.json",
+      "sha256": "c0382117ea329cdf097041132f6d735924b697924d6f6fc3945713e96ce87539",
+      "licenseReview": "apache_2_0"
+    }
+  ]
+}
