@@ -137,10 +137,10 @@ echo "== 게이트웨이 의존성 =="
 # pip 는 그걸 경고만 하고 0 으로 끝내서, ComfyUI 가 뜰 때가 되어서야 터집니다.
 # 여기서 미리 잡아 원인이 보이게 합니다.
 echo "== 의존성 정합성 확인 =="
-"$venv/bin/pip" check || {
-  echo "패키지 버전이 서로 안 맞습니다. 위 목록을 보고 requirements 를 맞춰주세요." >&2
-  exit 1
-}
+# pip check 는 참고용입니다. venv 가 --system-site-packages 라 인스턴스 이미지에
+# 원래 있던 무관한 충돌까지 잡아내거든요. 여기서 멈추면 안 됩니다.
+"$venv/bin/pip" check || echo "(위 충돌 목록은 참고용입니다. 아래 임포트가 되면 진행합니다.)"
+# 진짜 판정은 이겁니다. 이게 깨지면 ComfyUI 가 100% 못 뜹니다.
 "$venv/bin/python" -c 'from transformers import CLIPTokenizer; from tokenizers import Tokenizer' || {
   echo "transformers/tokenizers 임포트 실패 — 이 상태면 ComfyUI 가 뜨지 않습니다." >&2
   exit 1
