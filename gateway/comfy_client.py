@@ -14,6 +14,10 @@ class ComfyError(RuntimeError):
     pass
 
 
+class ComfyTimeout(ComfyError):
+    """제한 시간 안에 그림이 안 나왔습니다. 그래프가 깨진 것과는 다른 사건입니다."""
+
+
 class ComfyClient:
     def __init__(self, base_url: str, timeout_seconds: int = 600) -> None:
         self.base_url = base_url.rstrip("/")
@@ -73,7 +77,7 @@ class ComfyClient:
                         return entry
                 await asyncio.sleep(delay)
                 delay = min(delay * 1.35, 2.0)
-        raise ComfyError("ComfyUI generation timed out")
+        raise ComfyTimeout(f"ComfyUI generation timed out after {self.timeout_seconds}s")
 
     @staticmethod
     def _last_output_image(history: dict[str, Any]) -> dict[str, Any]:

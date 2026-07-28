@@ -13,18 +13,21 @@ from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import Response
 from PIL import Image, ImageOps
 
-from comfy_client import ComfyClient, ComfyError
+from comfy_client import ComfyClient, ComfyError, ComfyTimeout
 from security import UnsafeWorkflow, authenticate, validate_prompt
 from token_guard import PromptTokenGuard
 
 COMFY_URL = os.environ.get("COMFY_URL", "http://127.0.0.1:8188")
 GATEWAY_TOKEN = os.environ.get("GATEWAY_TOKEN", "")
+# 에이전트가 840초, 워커의 lease 가 900초입니다. 여기가 제일 짧아야
+# "게이트웨이가 먼저 포기하고 사유를 알려주는" 순서가 지켜집니다.
+COMFY_TIMEOUT_SECONDS = int(os.environ.get("COMFY_TIMEOUT_SECONDS", "780"))
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 MAX_PIXELS = 4096 * 4096
 ALLOWED_INPUTS = {"PNG", "JPEG", "WEBP", "AVIF"}
 generation_lock = asyncio.Lock()
 app = FastAPI(title="chatos image GPU gateway", docs_url=None, redoc_url=None)
-comfy = ComfyClient(COMFY_URL)
+comfy = ComfyClient(COMFY_URL, timeout_seconds=COMFY_TIMEOUT_SECONDS)
 token_guard: PromptTokenGuard | None = None
 
 
@@ -117,5 +120,9 @@ async def generate(
         )
     except (KeyError, TypeError, json.JSONDecodeError, ValueError, UnsafeWorkflow) as exc:
         raise HTTPException(400, "invalid generation request") from exc
+    # 시간 초과는 그래프가 깨진 것과 다른 사건이라 상태 코드를 나눕니다.
+    # 에이전트가 이걸 보고 실패 사유를 generation_timeout 으로 남깁니다.
+    except ComfyTimeout as exc:
+        raise HTTPException(504, str(exc)) from exc
     except ComfyError as exc:
         raise HTTPException(502, str(exc)) from exc
