@@ -3,4 +3,8 @@ uvicorn[standard]==0.35.0
 httpx==0.28.1
 Pillow==11.3.0
 python-multipart==0.0.20
-tokenizers==0.21.4
+# ComfyUI 가 끌어오는 transformers 와 같은 범위를 씁니다.
+# 여기를 0.21.x 로 못박으면 pip 가 huggingface-hub 까지 1.x → 0.36 으로 끌어내려
+# transformers 임포트가 깨지고, ComfyUI 가 아예 안 뜹니다.
+# 쓰는 API 는 Tokenizer.from_file 하나뿐이라 이 범위 안에서는 다 동작합니다.
+tokenizers>=0.22.0,<=0.23.0

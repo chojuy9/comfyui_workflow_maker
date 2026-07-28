@@ -133,6 +133,19 @@ echo "== 게이트웨이 의존성 =="
 "$venv/bin/pip" install -q -r "$install_root/gateway/requirements.txt"
 "$venv/bin/python" -c 'import torch; print("torch", torch.__version__, "cuda", torch.cuda.is_available())'
 
+# 게이트웨이 의존성이 ComfyUI 쪽 패키지를 끌어내리는 일이 있었습니다.
+# pip 는 그걸 경고만 하고 0 으로 끝내서, ComfyUI 가 뜰 때가 되어서야 터집니다.
+# 여기서 미리 잡아 원인이 보이게 합니다.
+echo "== 의존성 정합성 확인 =="
+"$venv/bin/pip" check || {
+  echo "패키지 버전이 서로 안 맞습니다. 위 목록을 보고 requirements 를 맞춰주세요." >&2
+  exit 1
+}
+"$venv/bin/python" -c 'from transformers import CLIPTokenizer; from tokenizers import Tokenizer' || {
+  echo "transformers/tokenizers 임포트 실패 — 이 상태면 ComfyUI 가 뜨지 않습니다." >&2
+  exit 1
+}
+
 # ── 4. 모델 ─────────────────────────────────────────────────────────────────
 echo "== 모델 확인 =="
 python3 "$install_root/scripts/install_models.py" \
