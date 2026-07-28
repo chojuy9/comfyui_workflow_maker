@@ -4,7 +4,7 @@
 # gateway/entrypoint.sh 와 같은 순서로 띄우되, docker 의 `--restart unless-stopped`
 # 가 없으니 죽으면 스스로 다시 뜨는 루프를 둡니다.
 #
-#   ComfyUI (127.0.0.1:8188)  →  게이트웨이 (127.0.0.1:$GATEWAY_PORT)  →  에이전트
+#   ComfyUI (127.0.0.1:8188)  →  게이트웨이 (유닉스 소켓)  →  에이전트
 set -uo pipefail
 
 install_root="${INSTALL_ROOT:-/workspace/chatos-image}"
@@ -16,9 +16,10 @@ mkdir -p "$log_dir"
 
 export TOKENIZER_PATH="${TOKENIZER_PATH:-$model_root/tokenizers}"
 export COMFY_URL="${COMFY_URL:-http://127.0.0.1:8188}"
-# 8080 은 Vast.ai 인스턴스가 이미 쓰고 있는 일이 많아 기본값을 옮겼습니다.
+# 게이트웨이는 같은 머신 안에서만 부르므로 TCP 포트를 안 씁니다.
+# 유닉스 소켓이라 포트 충돌이 아예 생기지 않아요.
 # 에이전트도 같은 값을 봐야 하므로 export 합니다.
-export GATEWAY_PORT="${GATEWAY_PORT:-8791}"
+export GATEWAY_UDS="${GATEWAY_UDS:-/tmp/chatos-gateway.sock}"
 
 : "${GATEWAY_TOKEN:?GATEWAY_TOKEN 이 필요합니다}"
 : "${WORKER_BASE_URL:?WORKER_BASE_URL 이 필요합니다}"
@@ -54,29 +55,24 @@ start_once() {
     || { log "ComfyUI 준비 실패"; return 1; }
   log "ComfyUI 준비됨"
 
-  # 남이 쓰고 있는 포트면 uvicorn 이 바인드 실패로 죽고, 로그만 봐서는
-  # 우리 게이트웨이가 터진 것처럼 보입니다. 미리 확인해서 원인을 밝힙니다.
-  if curl --fail --silent "http://127.0.0.1:$GATEWAY_PORT/healthz" >/dev/null 2>&1; then
-    log "포트 $GATEWAY_PORT 에 이미 우리 게이트웨이가 떠 있습니다. 그대로 씁니다"
-  elif (exec 3<>"/dev/tcp/127.0.0.1/$GATEWAY_PORT") 2>/dev/null; then
-    exec 3>&- 2>/dev/null || true
-    log "포트 $GATEWAY_PORT 를 다른 프로그램이 쓰고 있습니다."
-    log "GATEWAY_PORT 를 빈 포트로 바꿔서 다시 실행하세요 (예: GATEWAY_PORT=8792)"
-    return 1
-  fi
+  # 지난번에 죽으면서 남긴 소켓 파일이 있으면 uvicorn 이 바인드에 실패합니다.
+  # 이 시점엔 이전 게이트웨이를 이미 정리한 뒤라 지워도 안전합니다.
+  rm -f "$GATEWAY_UDS"
 
-  log "게이트웨이 시작 (포트 $GATEWAY_PORT)"
+  log "게이트웨이 시작 (소켓 $GATEWAY_UDS)"
   ( cd "$install_root/gateway" && exec "$venv/bin/uvicorn" app:app \
-      --host 127.0.0.1 --port "$GATEWAY_PORT" ) >> "$log_dir/gateway.log" 2>&1 &
+      --uds "$GATEWAY_UDS" ) >> "$log_dir/gateway.log" 2>&1 &
   gateway_pid=$!
 
   for _ in $(seq 1 60); do
-    curl --fail --silent "http://127.0.0.1:$GATEWAY_PORT/healthz" >/dev/null && break
+    curl --fail --silent --unix-socket "$GATEWAY_UDS" http://localhost/healthz >/dev/null && break
     kill -0 "$gateway_pid" 2>/dev/null || { log "게이트웨이가 죽었습니다. gateway.log 를 보세요"; return 1; }
     sleep 1
   done
-  curl --fail --silent "http://127.0.0.1:$GATEWAY_PORT/healthz" >/dev/null \
+  curl --fail --silent --unix-socket "$GATEWAY_UDS" http://localhost/healthz >/dev/null \
     || { log "게이트웨이 준비 실패"; return 1; }
+  # 소켓은 기본 권한이 넉넉합니다. 같은 머신의 다른 사용자가 못 붙게 조입니다.
+  chmod 600 "$GATEWAY_UDS" 2>/dev/null || true
   log "게이트웨이 준비됨"
 
   log "에이전트 시작 — 여기서부터 chatos.page 의 일감을 가져옵니다"

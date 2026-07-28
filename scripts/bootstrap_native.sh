@@ -73,9 +73,10 @@ case "$command" in
     echo "--- 포트 ---"
     curl --fail --silent http://127.0.0.1:8188/system_stats >/dev/null \
       && echo "  ComfyUI  8188  응답함" || echo "  ComfyUI  8188  응답 없음"
-    curl --fail --silent "http://127.0.0.1:${GATEWAY_PORT:-8791}/healthz" >/dev/null \
-      && echo "  게이트웨이 ${GATEWAY_PORT:-8791}  응답함" \
-      || echo "  게이트웨이 ${GATEWAY_PORT:-8791}  응답 없음"
+    curl --fail --silent --unix-socket "${GATEWAY_UDS:-/tmp/chatos-gateway.sock}" \
+      http://localhost/healthz >/dev/null \
+      && echo "  게이트웨이 소켓  응답함" \
+      || echo "  게이트웨이 소켓  응답 없음"
     echo "--- 최근 에이전트 로그 ---"
     tail -5 "$log_dir/agent.log" 2>/dev/null || echo "  (없음)"
     exit 0 ;;

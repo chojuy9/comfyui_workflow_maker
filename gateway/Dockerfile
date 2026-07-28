@@ -25,5 +25,5 @@ COPY app.py comfy_client.py security.py token_guard.py worker_agent.py ./
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-EXPOSE 8791
+# 게이트웨이는 유닉스 소켓으로만 듣습니다. 밖으로 열 포트가 없어요.
 ENTRYPOINT ["/entrypoint.sh"]

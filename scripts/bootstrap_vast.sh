@@ -65,9 +65,7 @@ docker run -d --restart unless-stopped --gpus all \
   -e WORKER_BASE_URL \
   -e WORKER_API_TOKEN \
   -e GATEWAY_TOKEN \
-  -e GATEWAY_PORT="${GATEWAY_PORT:-8791}" \
   -v "$model_root:/opt/ComfyUI/models" \
-  -p "127.0.0.1:${GATEWAY_PORT:-8791}:${GATEWAY_PORT:-8791}" \
   chatos-image-gateway
 
 docker ps --filter name=chatos-image-gateway
