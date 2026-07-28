@@ -23,6 +23,34 @@ install_pid_file="/workspace/chatos-install.pid"
 installing() {
   [[ -f "$install_pid_file" ]] && kill -0 "$(cat "$install_pid_file" 2>/dev/null)" 2>/dev/null
 }
+
+# 실행 중인 ComfyUI/게이트웨이/에이전트만 정리합니다. 설치 쪽은 안 건드려요.
+stop_run() {
+  if [[ -f "$pid_file" ]]; then
+    kill -- "-$(cat "$pid_file")" 2>/dev/null || kill "$(cat "$pid_file")" 2>/dev/null || true
+    rm -f "$pid_file"
+  fi
+  pkill -f 'ComfyUI/main.py' 2>/dev/null || true
+  pkill -f 'uvicorn app:app' 2>/dev/null || true
+  pkill -f 'worker_agent.py' 2>/dev/null || true
+}
+
+# 설치 프로세스를 멈춥니다.
+#
+# go.sh 는 이 스크립트를 setsid 로 띄우고 그 PID 를 install_pid_file 에 적습니다.
+# setsid 라서 그 PID 는 곧 프로세스 그룹 ID 이고, `kill -- -<pgid>` 는 그 그룹을
+# 통째로 죽입니다 — 지금 이 스크립트까지요. 그래서 자기 그룹이면 건너뜁니다.
+# (이것 때문에 설치가 다 끝나고 실행 직전에 스스로 죽는 일이 있었습니다.)
+stop_install() {
+  [[ -f "$install_pid_file" ]] || return 0
+  local target self
+  target="$(cat "$install_pid_file" 2>/dev/null)"
+  self="$(ps -o pgid= -p $$ 2>/dev/null | tr -d ' ')"
+  if [[ -n "$target" && "$target" != "$self" ]]; then
+    kill -- "-$target" 2>/dev/null || kill "$target" 2>/dev/null || true
+    rm -f "$install_pid_file"
+  fi
+}
 COMFYUI_COMMIT="${COMFYUI_COMMIT:-093d571b83e7a79833200e199b46b9f5a62217f9}"
 
 command="${1:-install}"
@@ -51,18 +79,13 @@ case "$command" in
     tail -5 "$log_dir/agent.log" 2>/dev/null || echo "  (없음)"
     exit 0 ;;
   stop)
-    if [[ -f "$pid_file" ]]; then
-      kill -- "-$(cat "$pid_file")" 2>/dev/null || kill "$(cat "$pid_file")" 2>/dev/null || true
-      rm -f "$pid_file"
-    fi
-    if [[ -f "$install_pid_file" ]]; then
-      kill -- "-$(cat "$install_pid_file")" 2>/dev/null || kill "$(cat "$install_pid_file")" 2>/dev/null || true
-      rm -f "$install_pid_file"
-    fi
-    pkill -f 'ComfyUI/main.py' 2>/dev/null || true
-    pkill -f 'uvicorn app:app' 2>/dev/null || true
-    pkill -f 'worker_agent.py' 2>/dev/null || true
+    stop_run
+    stop_install
     echo "정지했습니다"
+    exit 0 ;;
+  stop-run)
+    # 설치 스크립트가 실행 직전에 쓰는 내부용입니다.
+    stop_run
     exit 0 ;;
   logs)
     # 설치 중이면 설치 로그를, 다 됐으면 실행 로그를 보여줍니다.
@@ -153,7 +176,9 @@ python3 "$install_root/scripts/install_models.py" \
   ${ALLOW_UNVERIFIED_MODELS:+--allow-unverified}
 
 # ── 5. 실행 ─────────────────────────────────────────────────────────────────
-"$0" stop >/dev/null 2>&1 || true
+# stop 이 아니라 stop_run 입니다. stop 은 설치 프로세스(=지금 이 스크립트)까지
+# 죽여서, 여기까지 와놓고 run_native.sh 를 못 띄우고 끝나버립니다.
+stop_run
 chmod +x "$install_root/scripts/run_native.sh"
 echo "== 실행 =="
 # setsid 로 떼어놓아서 SSH 를 끊어도 계속 돕니다.
