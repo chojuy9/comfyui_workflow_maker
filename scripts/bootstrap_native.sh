@@ -17,17 +17,31 @@ comfy_root="$(dirname "$model_root")"
 venv="${CHATOS_VENV:-/workspace/venv}"
 log_dir="${CHATOS_LOG_DIR:-/workspace/logs}"
 pid_file="/workspace/chatos-native.pid"
+install_pid_file="/workspace/chatos-install.pid"
+
+# 설치가 돌고 있는지 봅니다. pgrep 은 자기 자신도 잡아버려서 pid 파일을 씁니다.
+installing() {
+  [[ -f "$install_pid_file" ]] && kill -0 "$(cat "$install_pid_file" 2>/dev/null)" 2>/dev/null
+}
 COMFYUI_COMMIT="${COMFYUI_COMMIT:-093d571b83e7a79833200e199b46b9f5a62217f9}"
 
 command="${1:-install}"
 
 case "$command" in
   status)
+    if installing; then
+      echo "설치 진행 중 — chatos logs 로 확인하세요"
+      tail -3 "$log_dir/install.log" 2>/dev/null | sed 's/^/  /'
+      echo
+    fi
     if [[ -f "$pid_file" ]] && kill -0 "$(cat "$pid_file")" 2>/dev/null; then
       echo "실행 중 (pid $(cat "$pid_file"))"
     else
       echo "정지 상태"
     fi
+    echo "--- 자원 ---"
+    printf "  메모리  %s\n" "$(free -h 2>/dev/null | awk '/^Mem:/{print $3" / "$2}')"
+    printf "  디스크  %s\n" "$(df -h /workspace 2>/dev/null | awk 'NR==2{print $3" / "$2" ("$5" 사용)"}')"
     echo "--- 포트 ---"
     curl --fail --silent http://127.0.0.1:8188/system_stats >/dev/null \
       && echo "  ComfyUI  8188  응답함" || echo "  ComfyUI  8188  응답 없음"
@@ -41,13 +55,23 @@ case "$command" in
       kill -- "-$(cat "$pid_file")" 2>/dev/null || kill "$(cat "$pid_file")" 2>/dev/null || true
       rm -f "$pid_file"
     fi
+    if [[ -f "$install_pid_file" ]]; then
+      kill -- "-$(cat "$install_pid_file")" 2>/dev/null || kill "$(cat "$install_pid_file")" 2>/dev/null || true
+      rm -f "$install_pid_file"
+    fi
     pkill -f 'ComfyUI/main.py' 2>/dev/null || true
     pkill -f 'uvicorn app:app' 2>/dev/null || true
     pkill -f 'worker_agent.py' 2>/dev/null || true
     echo "정지했습니다"
     exit 0 ;;
   logs)
-    tail -f "$log_dir"/agent.log "$log_dir"/gateway.log "$log_dir"/comfyui.log
+    # 설치 중이면 설치 로그를, 다 됐으면 실행 로그를 보여줍니다.
+    if installing; then
+      echo "== 설치 진행 중 — install.log =="
+      tail -f "$log_dir/install.log"
+    else
+      tail -f "$log_dir"/agent.log "$log_dir"/gateway.log "$log_dir"/comfyui.log
+    fi
     exit 0 ;;
 esac
 

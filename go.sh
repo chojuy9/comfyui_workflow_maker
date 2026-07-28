@@ -115,10 +115,45 @@ grep -q 'chatos.env' /root/.bashrc 2>/dev/null \
   || echo 'set -a; [ -f /etc/chatos.env ] && . /etc/chatos.env; set +a' >> /root/.bashrc
 
 # ── 설치 ────────────────────────────────────────────────────────────────────
+# 설치는 SSH 에서 떼어내서 돌립니다.
+# ComfyUI 의존성(torch 포함) 받는 데 몇 분 걸리는데, 그동안 창을 닫거나
+# 연결이 끊기면 pip 가 같이 죽어서 매번 처음부터 다시 하게 됩니다.
+log_dir="${CHATOS_LOG_DIR:-/workspace/logs}"
+mkdir -p "$log_dir"
+install_log="$log_dir/install.log"
+
 if docker info >/dev/null 2>&1; then
+  script="$install_root/scripts/bootstrap_vast.sh"
   echo "== docker 있음 — 컨테이너로 =="
-  exec bash "$install_root/scripts/bootstrap_vast.sh"
 else
+  script="$install_root/scripts/bootstrap_native.sh"
   echo "== docker 없음 — 인스턴스에 직접 =="
-  exec bash "$install_root/scripts/bootstrap_native.sh"
 fi
+
+# 이미 돌고 있으면 두 번 시작하지 않습니다.
+install_pid_file="/workspace/chatos-install.pid"
+if [[ -f "$install_pid_file" ]] && kill -0 "$(cat "$install_pid_file" 2>/dev/null)" 2>/dev/null; then
+  echo "이미 설치가 진행 중입니다. 로그를 보세요:  chatos logs"
+  exit 0
+fi
+
+: > "$install_log"
+setsid nohup bash "$script" >> "$install_log" 2>&1 &
+echo "$!" > "$install_pid_file"
+
+cat <<MSG
+
+설치를 백그라운드로 시작했습니다. SSH 를 끊어도 계속 진행됩니다.
+
+  진행 보기   tail -f $install_log
+  상태        chatos status
+  정지        chatos stop
+
+ComfyUI 의존성과 모델 받는 데 15~20분 걸립니다.
+관리 페이지의 이미지 GPU 카드가 '온라인'이 되면 끝난 겁니다.
+
+MSG
+
+# 처음 몇 줄은 바로 보여줍니다. 값이 틀렸으면 여기서 바로 드러납니다.
+sleep 3
+tail -n 20 "$install_log" 2>/dev/null || true
