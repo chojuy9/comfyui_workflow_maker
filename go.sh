@@ -87,7 +87,23 @@ esac
 EOF
 chmod +x /usr/local/bin/chatos
 
-# ── 값 저장 (SSH 로 들어와도 보이게) ────────────────────────────────────────
+# ── 값 정리 후 저장 (SSH 로 들어와도 보이게) ───────────────────────────────
+# 웹 화면에서 붙여넣다 보면 앞뒤 공백이나 따옴표가 딸려 들어옵니다.
+# 그대로 두면 civitai 가 400 을 주거나 토큰 대조가 어긋나는데, 원인이 잘 안 보여요.
+for name in CHATOS_REPO_URL WORKER_BASE_URL WORKER_API_TOKEN GATEWAY_TOKEN \
+            CIVITAI_TOKEN INSTALL_ROOT MODEL_ROOT; do
+  value="${!name:-}"
+  [[ -z "$value" ]] && continue
+  value="${value#"${value%%[![:space:]]*}"}"   # 앞 공백
+  value="${value%"${value##*[![:space:]]}"}"   # 뒤 공백
+  value="${value%\"}"; value="${value#\"}"     # 감싼 큰따옴표
+  value="${value%\'}"; value="${value#\'}"     # 감싼 작은따옴표
+  if [[ "$value" != "${!name}" ]]; then
+    echo "정리함: $name (앞뒤 공백이나 따옴표를 제거했습니다)"
+  fi
+  export "$name=$value"
+done
+
 {
   for name in CHATOS_REPO_URL WORKER_BASE_URL WORKER_API_TOKEN GATEWAY_TOKEN \
               CIVITAI_TOKEN INSTALL_ROOT MODEL_ROOT; do
