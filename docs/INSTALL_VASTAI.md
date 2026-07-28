@@ -76,14 +76,18 @@ export CIVITAI_TOKEN=...
 
 여기 넣은 값은 어떤 템플릿으로 인스턴스를 만들든 자동으로 들어옵니다. 인스턴스마다 다시 적을 필요가 없어요.
 
-```text
-WORKER_BASE_URL   https://chatos.page
-WORKER_API_TOKEN  Worker 의 IMAGE_GATEWAY_TOKEN 과 같은 값
-GATEWAY_TOKEN     위와 다른 32바이트 이상 랜덤값
-CIVITAI_TOKEN     civitai API 키
-INSTALL_ROOT      /workspace/chatos-image
-MODEL_ROOT        /workspace/ComfyUI/models
-```
+| 이름 (Name 칸) | 값 (Value 칸) |
+|---|---|
+| `WORKER_BASE_URL` | `https://chatos.page` |
+| `WORKER_API_TOKEN` | Worker 의 `IMAGE_GATEWAY_TOKEN` 과 **같은 값** |
+| `GATEWAY_TOKEN` | 위와 **다른** 32바이트 이상 랜덤값 |
+| `CIVITAI_TOKEN` | civitai API 키 |
+| `INSTALL_ROOT` | `/workspace/chatos-image` |
+| `MODEL_ROOT` | `/workspace/ComfyUI/models` |
+
+> **이름 칸에는 이름만, 공백 없이.** 뒤에 공백이 하나만 붙어도 Vast.ai 가
+> `Must NOT begin with a digit and can only contain alphanumeric characters or underscores`
+> 로 거절합니다.
 
 `WORKER_BASE_URL` 끝에 슬래시를 붙이지 마세요.
 

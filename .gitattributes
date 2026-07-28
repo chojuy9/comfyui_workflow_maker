@@ -1,0 +1,23 @@
+# 줄바꿈을 고정합니다.
+#
+# 윈도우에서 작업하면 git 이 자동으로 CRLF 로 바꾸려 드는데, 셸 스크립트가
+# CRLF 가 되면 인스턴스에서 `bash: $'\r': command not found` 로 죽습니다.
+# 리눅스에서 도는 것들은 전부 LF 로 못 박아 둡니다.
+
+*.sh      text eol=lf
+*.py      text eol=lf
+*.mjs     text eol=lf
+*.js      text eol=lf
+*.json    text eol=lf
+*.toml    text eol=lf
+*.md      text eol=lf
+Dockerfile text eol=lf
+.gitignore text eol=lf
+
+# PowerShell 은 윈도우에서만 도니 CRLF 로 둡니다.
+*.ps1     text eol=crlf
+
+# 이진 파일은 건드리지 않습니다.
+*.safetensors binary
+*.pth     binary
+*.png     binary

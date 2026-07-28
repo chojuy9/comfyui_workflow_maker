@@ -6,8 +6,31 @@ import hashlib
 import json
 import os
 import sys
+import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
+
+
+class StripAuthOnRedirect(urllib.request.HTTPRedirectHandler):
+    """다른 호스트로 넘어갈 때 Authorization 헤더를 뗍니다.
+
+    civitai 는 다운로드 요청을 서명이 붙은 CDN 주소로 넘깁니다. 그 주소에는
+    이미 인증 정보가 들어 있어서, Authorization 헤더까지 같이 가면 인증 방식이
+    둘이 된 셈이라 CDN 이 400 으로 거절합니다. 토큰이 틀린 게 아니라
+    토큰을 두 번 보낸 게 문제라, 401 이 아니라 400 이 나와서 헷갈립니다.
+    """
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        new = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if new is None:
+            return None
+        if urllib.parse.urlsplit(req.full_url).netloc != urllib.parse.urlsplit(newurl).netloc:
+            new.remove_header("Authorization")
+        return new
+
+
+OPENER = urllib.request.build_opener(StripAuthOnRedirect)
 
 
 def sha256(path: Path) -> str:
@@ -35,13 +58,39 @@ def download(item: dict, root: Path, allow_unverified: bool) -> None:
         return
     temporary = target.with_suffix(target.suffix + ".part")
     headers = {"User-Agent": "chatos-image-installer/0.1"}
-    token = os.environ.get("CIVITAI_TOKEN")
+    # 환경변수에 공백이나 줄바꿈이 딸려 들어오는 일이 잦습니다.
+    # 그대로 헤더에 넣으면 civitai 가 401 이 아니라 400 을 돌려줘서 원인을 찾기 어려워요.
+    token = (os.environ.get("CIVITAI_TOKEN") or "").strip()
     if token and "civitai.com" in item["url"]:
+        if not token.isascii() or any(c.isspace() for c in token):
+            raise RuntimeError(
+                "CIVITAI_TOKEN 에 공백이나 이상한 문자가 들어 있습니다. "
+                "값을 다시 확인하세요 (앞뒤 공백, 따옴표, 줄바꿈)."
+            )
         headers["Authorization"] = f"Bearer {token}"
     request = urllib.request.Request(item["url"], headers=headers)
     print(f"download {item['id']} -> {target}", flush=True)
     digest = hashlib.sha256()
-    with urllib.request.urlopen(request, timeout=120) as response, temporary.open("wb") as output:
+    try:
+        response = OPENER.open(request, timeout=120)
+    except urllib.error.HTTPError as error:
+        # 상태 코드만 보면 원인을 못 찾습니다. 본문 앞부분을 같이 보여줍니다.
+        body = ""
+        try:
+            body = error.read(400).decode("utf-8", "replace").strip()
+        except Exception:
+            pass
+        hint = ""
+        if error.code in (401, 403):
+            hint = " — CIVITAI_TOKEN 을 확인하세요."
+        elif error.code == 400:
+            hint = " — 주소나 인증 방식 문제입니다. 응답 본문을 보세요."
+        raise RuntimeError(
+            f"{item['id']}: HTTP {error.code} {error.reason}{hint}\n"
+            f"  주소: {item['url']}\n"
+            f"  응답: {body or '(본문 없음)'}"
+        ) from None
+    with response, temporary.open("wb") as output:
         while chunk := response.read(8 * 1024 * 1024):
             output.write(chunk)
             digest.update(chunk)
