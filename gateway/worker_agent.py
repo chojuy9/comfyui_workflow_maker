@@ -10,6 +10,10 @@ WORKER_BASE_URL = os.environ.get("WORKER_BASE_URL", "").rstrip("/")
 WORKER_API_TOKEN = os.environ.get("WORKER_API_TOKEN", "")
 GATEWAY_TOKEN = os.environ.get("GATEWAY_TOKEN", "")
 POLL_SECONDS = float(os.environ.get("POLL_SECONDS", "2"))
+# 8080 은 Vast.ai 인스턴스에서 이미 쓰고 있는 경우가 많습니다.
+# 겹치면 게이트웨이가 바인드에 실패하고 에이전트까지 못 뜹니다.
+GATEWAY_PORT = os.environ.get("GATEWAY_PORT", "8791")
+GATEWAY_URL = f"http://127.0.0.1:{GATEWAY_PORT}"
 
 
 async def run_once(client: httpx.AsyncClient) -> bool:
@@ -35,7 +39,7 @@ async def run_once(client: httpx.AsyncClient) -> bool:
     files["spec_json"] = (None, json.dumps(lease["spec"]), "application/json")
     try:
         generated = await client.post(
-            "http://127.0.0.1:8080/v1/generate",
+            f"{GATEWAY_URL}/v1/generate",
             headers={"Authorization": f"Bearer {GATEWAY_TOKEN}"},
             files=files,
             timeout=900,

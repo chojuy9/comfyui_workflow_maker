@@ -25,5 +25,5 @@ COPY app.py comfy_client.py security.py token_guard.py worker_agent.py ./
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-EXPOSE 8080
+EXPOSE 8791
 ENTRYPOINT ["/entrypoint.sh"]
