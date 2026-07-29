@@ -23,6 +23,10 @@ GATEWAY_URL = "http://gateway"
 # 이게 없으면 생성이 오래 걸리는 사이 lease 호출이 끊겨 관리 화면에 오프라인으로 보입니다.
 HEARTBEAT_SECONDS = float(os.environ.get("HEARTBEAT_SECONDS", "10"))
 
+# 워커에게 "아카 읽어올까요?" 하고 물어보는 주기입니다.
+# 물어보는 것 자체는 우리 워커한테 가는 거라 아카와 무관합니다.
+ARCA_RELAY_SECONDS = float(os.environ.get("ARCA_RELAY_SECONDS", "20"))
+
 # 시간 사슬은 안쪽이 항상 더 짧아야 합니다.
 #
 #   ComfyUI 대기 780초  <  이 요청 840초  <  워커의 lease 만료 900초
@@ -227,6 +231,69 @@ async def heartbeat_loop(client: httpx.AsyncClient) -> None:
         await asyncio.sleep(HEARTBEAT_SECONDS)
 
 
+async def arca_relay_loop(client: httpx.AsyncClient) -> None:
+    """아카라이브 스레드를 대신 읽어다 워커에 넘깁니다.
+
+    왜 인스턴스가 이걸 하나
+    ----------------------
+    Cloudflare 워커가 아카라이브를 직접 부르면 429 가 돌아옵니다. 우리 요청이
+    많아서가 아니라, 워커가 나가는 주소를 아카 쪽에서 이미 시끄러운 주소로
+    보기 때문이에요. 인스턴스는 평범한 IP 라 그냥 열립니다.
+
+    상시로 긁지 않습니다
+    -------------------
+    워커가 "지금 필요하다"고 할 때만 읽습니다. 인증하려는 사람이 실제로
+    막혔을 때만 그 깃발이 서요. 평소에는 아카로 나가는 요청이 0 입니다.
+    상시로 긁으면 이번엔 인스턴스 주소가 막히고, 같은 문제를 자리만
+    옮겨서 다시 만나게 됩니다.
+
+    여기서 나는 오류는 전부 삼킵니다. 어디까지나 곁다리 일이라, 이것 때문에
+    그림 생성이 멈추면 안 돼요.
+    """
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+        ),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8",
+        "Referer": "https://arca.live/b/characterai",
+    }
+    while True:
+        try:
+            asked = await client.get(
+                f"{WORKER_BASE_URL}/api/relay/arca",
+                headers=auth_headers(),
+                timeout=15,
+            )
+            body = asked.json() if asked.status_code == 200 else {}
+            if body.get("wanted"):
+                pages = []
+                for item in body.get("urls", []):
+                    # 이 클라이언트는 리다이렉트를 안 따라가게 만들어져 있습니다.
+                    # 워커 API 에는 그게 맞지만 아카는 따라가야 해요.
+                    page = await client.get(
+                        item["url"], headers=headers, timeout=30, follow_redirects=True
+                    )
+                    if page.status_code == 200:
+                        pages.append({"cp": item["cp"], "html": page.text})
+                    else:
+                        log("arca_relay_fetch_failed", cp=item["cp"], status=page.status_code)
+                    # 두 페이지를 붙여서 쏘지 않습니다. 사람이 넘기는 속도로.
+                    await asyncio.sleep(1.5)
+                if pages:
+                    sent = await client.post(
+                        f"{WORKER_BASE_URL}/api/relay/arca",
+                        headers=auth_headers(),
+                        json={"pages": pages},
+                        timeout=60,
+                    )
+                    log("arca_relayed", pages=len(pages), status=sent.status_code)
+        except Exception as exc:
+            log("arca_relay_error", error=type(exc).__name__, detail=str(exc)[:200])
+        await asyncio.sleep(ARCA_RELAY_SECONDS)
+
+
 async def main() -> None:
     if not WORKER_BASE_URL or not WORKER_API_TOKEN:
         raise RuntimeError("WORKER_BASE_URL and WORKER_API_TOKEN must be configured")
@@ -234,7 +301,8 @@ async def main() -> None:
     async with httpx.AsyncClient(follow_redirects=False, timeout=60) as client, \
             httpx.AsyncClient(transport=gateway_transport, timeout=60) as gateway:
         beat = asyncio.create_task(heartbeat_loop(client))
-        log("agent_started", uds=GATEWAY_UDS, worker=WORKER_BASE_URL)
+        relay = asyncio.create_task(arca_relay_loop(client))
+        log("agent_started", uds=GATEWAY_UDS, worker=WORKER_BASE_URL, arcaRelay=True)
         try:
             while True:
                 # 게이트웨이가 죽어 있으면 일감을 아예 안 가져옵니다.
@@ -255,6 +323,7 @@ async def main() -> None:
                     await asyncio.sleep(min(POLL_SECONDS * 3, 15))
         finally:
             beat.cancel()
+            relay.cancel()
 
 
 if __name__ == "__main__":
