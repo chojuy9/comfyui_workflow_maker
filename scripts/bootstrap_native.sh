@@ -30,9 +30,24 @@ stop_run() {
     kill -- "-$(cat "$pid_file")" 2>/dev/null || kill "$(cat "$pid_file")" 2>/dev/null || true
     rm -f "$pid_file"
   fi
+  # 감시 루프를 먼저 죽입니다. 순서가 중요해요.
+  #
+  # run_native.sh 는 ComfyUI·게이트웨이·에이전트가 죽으면 다시 띄웁니다.
+  # 자식만 죽이면 부모가 곧바로 새로 낳아서, 정리한 줄 알았는데 프로세스가
+  # 그대로 있거나 오히려 두 벌이 됩니다. 유령 에이전트가 계속 생기던 게
+  # 정확히 이것 때문이었어요. pid 파일이 지워졌거나 덮어써졌으면 위의
+  # 그룹 kill 도 못 잡으니, 이름으로 한 번 더 확실히 잡습니다.
+  #
+  # (`bootstrap_native.sh` 는 이 패턴에 안 걸립니다. 지금 이 스크립트가
+  #  스스로를 죽이는 일은 없어요.)
+  pkill -f 'run_native.sh' 2>/dev/null || true
+  sleep 1
   pkill -f 'ComfyUI/main.py' 2>/dev/null || true
   pkill -f 'uvicorn app:app' 2>/dev/null || true
   pkill -f 'worker_agent.py' 2>/dev/null || true
+
+  # 낡은 소켓 파일이 남아 있으면 다음 uvicorn 이 바인드에 실패합니다.
+  rm -f "${GATEWAY_UDS:-/tmp/chatos-gateway.sock}" 2>/dev/null || true
 }
 
 # 설치 프로세스를 멈춥니다.
