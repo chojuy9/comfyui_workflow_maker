@@ -263,6 +263,15 @@ export function compileWorkflow(raw) {
       preset: request.presetKey,
       width: request.preset.width * (request.upscale ? 2 : 1),
       height: request.preset.height * (request.upscale ? 2 : 1),
+      positive: request.positive,
+      negative: request.negative,
+      seed: request.seed,
+      steps: request.steps,
+      cfg: request.cfg,
+      sampler: request.sampler,
+      scheduler: request.scheduler,
+      loras: request.loras.map(({ id, strength }) => ({ id, strength })),
+      upscale: request.upscale,
       insertedTriggers: request.insertedTriggers,
       outputFormat: request.outputFormat
     }

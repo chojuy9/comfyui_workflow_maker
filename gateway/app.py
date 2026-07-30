@@ -14,6 +14,7 @@ from fastapi.responses import Response
 from PIL import Image, ImageOps
 
 from comfy_client import ComfyClient, ComfyError, ComfyTimeout
+from image_metadata import convert_output
 from security import UnsafeWorkflow, authenticate, validate_prompt
 from token_guard import PromptTokenGuard
 
@@ -63,17 +64,6 @@ def normalize_input(data: bytes, width: int, height: int, fit: str) -> bytes:
         return output.getvalue()
 
 
-def convert_output(data: bytes, output_format: str) -> tuple[bytes, str]:
-    if output_format == "png":
-        return data, "image/png"
-    if output_format != "webp":
-        raise ValueError("unsupported output format")
-    with Image.open(io.BytesIO(data)) as image:
-        output = io.BytesIO()
-        image.save(output, "WEBP", quality=95, method=6)
-        return output.getvalue(), "image/webp"
-
-
 @app.get("/healthz")
 async def healthz() -> dict[str, str]:
     return {"status": "ok"}
@@ -112,7 +102,11 @@ async def generate(
                 load_nodes[0]["inputs"]["image"] = uploaded_name
             async with generation_lock:
                 result = await comfy.run(prompt)
-        converted, content_type = convert_output(result, metadata.get("outputFormat", "png"))
+        converted, content_type = convert_output(
+            result,
+            metadata.get("outputFormat", "png"),
+            metadata,
+        )
         return Response(
             converted,
             media_type=content_type,

@@ -10,7 +10,6 @@ export GATEWAY_UDS="${GATEWAY_UDS:-/tmp/chatos-gateway.sock}"
   --listen 127.0.0.1 \
   --port 8188 \
   --disable-auto-launch \
-  --disable-metadata \
   --preview-method none &
 comfy_pid=$!
 

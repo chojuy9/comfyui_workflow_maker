@@ -16,6 +16,10 @@ test("compiles all six model/preset combinations", () => {
     for (const preset of ["portrait", "landscape", "square"]) {
       const result = compileWorkflow({ ...base, model, preset });
       assert.equal(result.metadata.model, model);
+      assert.equal(result.metadata.positive, base.positive);
+      assert.equal(result.metadata.seed, Number(base.seed));
+      assert.equal(result.metadata.steps, base.steps);
+      assert.equal(result.metadata.sampler, base.sampler);
       assert.ok(Object.values(result.prompt).some((node) => node.class_type === "KSampler"));
       assert.ok(Object.values(result.prompt).some((node) => node.class_type === "SaveImage"));
     }

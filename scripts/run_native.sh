@@ -41,7 +41,7 @@ start_once() {
   log "ComfyUI 시작"
   "$venv/bin/python" "$comfy_root/main.py" \
     --listen 127.0.0.1 --port 8188 \
-    --disable-auto-launch --disable-metadata --preview-method none \
+    --disable-auto-launch --preview-method none \
     >> "$log_dir/comfyui.log" 2>&1 &
   comfy_pid=$!
 
