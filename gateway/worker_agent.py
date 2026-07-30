@@ -10,7 +10,11 @@ import httpx
 WORKER_BASE_URL = os.environ.get("WORKER_BASE_URL", "").rstrip("/")
 WORKER_API_TOKEN = os.environ.get("WORKER_API_TOKEN", "")
 GATEWAY_TOKEN = os.environ.get("GATEWAY_TOKEN", "")
-POLL_SECONDS = float(os.environ.get("POLL_SECONDS", "2"))
+# 큐가 비어 있을 때만 기다리는 시간입니다. 2초 폴링은 에이전트 한 대가
+# 대기만 해도 하루 43,200번 Worker를 호출하므로 무료 한도를 과하게 씁니다.
+# 관리 화면은 30초 안에 lease/heartbeat가 있으면 온라인으로 보므로 15초면
+# 표시 정확도를 유지하면서 유휴 호출을 크게 줄일 수 있습니다.
+POLL_SECONDS = float(os.environ.get("POLL_SECONDS", "15"))
 
 # 게이트웨이는 같은 머신에서만 부르므로 TCP 포트가 필요 없습니다.
 # 유닉스 소켓을 쓰면 포트 충돌 자체가 생기지 않아요.
@@ -25,7 +29,7 @@ HEARTBEAT_SECONDS = float(os.environ.get("HEARTBEAT_SECONDS", "10"))
 
 # 워커에게 "아카 읽어올까요?" 하고 물어보는 주기입니다.
 # 물어보는 것 자체는 우리 워커한테 가는 거라 아카와 무관합니다.
-ARCA_RELAY_SECONDS = float(os.environ.get("ARCA_RELAY_SECONDS", "20"))
+ARCA_RELAY_SECONDS = float(os.environ.get("ARCA_RELAY_SECONDS", "120"))
 
 # 시간 사슬은 안쪽이 항상 더 짧아야 합니다.
 #
@@ -136,6 +140,7 @@ async def run_once(client: httpx.AsyncClient, gateway: httpx.AsyncClient) -> boo
     lease = response.json()
     job_id = lease["id"]
     lease_headers = {**headers, "X-Lease-Token": lease["leaseToken"]}
+    heartbeat_task = asyncio.create_task(heartbeat_loop(client))
 
     async def give_back() -> None:
         """잡을 대기열로 되돌립니다. 실패로 기록하지 않습니다."""
@@ -205,6 +210,9 @@ async def run_once(client: httpx.AsyncClient, gateway: httpx.AsyncClient) -> boo
         except Exception:
             pass
         raise
+    finally:
+        heartbeat_task.cancel()
+        await asyncio.gather(heartbeat_task, return_exceptions=True)
 
     log("job_completed", jobId=job_id)
     return True
@@ -220,6 +228,9 @@ async def heartbeat_loop(client: httpx.AsyncClient) -> None:
     이것 때문에 잡 처리가 멈추면 안 됩니다.
     """
     while True:
+        # lease 자체가 방금 생존 신호를 남겼습니다. 먼저 기다려서 짧은 작업에는
+        # heartbeat 요청을 아예 만들지 않습니다.
+        await asyncio.sleep(HEARTBEAT_SECONDS)
         try:
             await client.post(
                 f"{WORKER_BASE_URL}/api/image/internal/heartbeat",
@@ -228,7 +239,6 @@ async def heartbeat_loop(client: httpx.AsyncClient) -> None:
             )
         except Exception:
             pass
-        await asyncio.sleep(HEARTBEAT_SECONDS)
 
 
 async def arca_relay_loop(client: httpx.AsyncClient) -> None:
@@ -300,7 +310,6 @@ async def main() -> None:
     gateway_transport = httpx.AsyncHTTPTransport(uds=GATEWAY_UDS)
     async with httpx.AsyncClient(follow_redirects=False, timeout=60) as client, \
             httpx.AsyncClient(transport=gateway_transport, timeout=60) as gateway:
-        beat = asyncio.create_task(heartbeat_loop(client))
         relay = asyncio.create_task(arca_relay_loop(client))
         log("agent_started", uds=GATEWAY_UDS, worker=WORKER_BASE_URL, arcaRelay=True)
         try:
@@ -322,8 +331,8 @@ async def main() -> None:
                     log("worker_agent_error", error=type(exc).__name__, detail=str(exc)[:200])
                     await asyncio.sleep(min(POLL_SECONDS * 3, 15))
         finally:
-            beat.cancel()
             relay.cancel()
+            await asyncio.gather(relay, return_exceptions=True)
 
 
 if __name__ == "__main__":
