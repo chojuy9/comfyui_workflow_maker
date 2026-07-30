@@ -15,12 +15,14 @@ test("compiles all six model/preset combinations", () => {
   for (const model of ["wai_v17", "anima_base_10"]) {
     for (const preset of ["portrait", "landscape", "square"]) {
       const result = compileWorkflow({ ...base, model, preset });
+      const sampler = Object.values(result.prompt)
+        .find((node) => node.class_type === "KSampler");
       assert.equal(result.metadata.model, model);
       assert.equal(result.metadata.positive, base.positive);
       assert.equal(result.metadata.seed, Number(base.seed));
-      assert.equal(result.metadata.steps, base.steps);
-      assert.equal(result.metadata.sampler, base.sampler);
-      assert.ok(Object.values(result.prompt).some((node) => node.class_type === "KSampler"));
+      assert.ok(sampler);
+      assert.equal(result.metadata.steps, sampler.inputs.steps);
+      assert.equal(result.metadata.sampler, sampler.inputs.sampler_name);
       assert.ok(Object.values(result.prompt).some((node) => node.class_type === "SaveImage"));
     }
   }

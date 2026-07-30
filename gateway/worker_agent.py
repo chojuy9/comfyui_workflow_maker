@@ -7,6 +7,13 @@ import time
 
 import httpx
 
+from scheduler import (
+    ANIMA_MODEL,
+    SCHEDULER_VERSION,
+    SchedulerState,
+    retry_after_seconds,
+)
+
 WORKER_BASE_URL = os.environ.get("WORKER_BASE_URL", "").rstrip("/")
 WORKER_API_TOKEN = os.environ.get("WORKER_API_TOKEN", "")
 GATEWAY_TOKEN = os.environ.get("GATEWAY_TOKEN", "")
@@ -43,7 +50,6 @@ RESULT_TIMEOUT = float(os.environ.get("RESULT_TIMEOUT", "120"))
 
 # 게이트웨이가 죽어 있을 때 다시 확인하기까지 기다리는 시간입니다.
 GATEWAY_DOWN_BACKOFF = float(os.environ.get("GATEWAY_DOWN_BACKOFF", "15"))
-
 
 class GatewayUnavailable(RuntimeError):
     """게이트웨이에 아예 못 붙었습니다. 생성 실패가 아닙니다."""
@@ -131,14 +137,34 @@ async def generate(gateway: httpx.AsyncClient, lease: dict, files: dict) -> http
     raise GenerationFailed("gateway_error", f"unexpected status {response.status_code}")
 
 
-async def run_once(client: httpx.AsyncClient, gateway: httpx.AsyncClient) -> bool:
+async def run_once(
+    client: httpx.AsyncClient,
+    gateway: httpx.AsyncClient,
+    scheduler: SchedulerState,
+) -> float:
+    """잡 하나를 처리하고, 다음 lease 전까지 기다릴 초를 돌려줍니다."""
     headers = auth_headers()
-    response = await client.post(f"{WORKER_BASE_URL}/api/image/internal/lease", headers=headers)
+    response = await client.post(
+        f"{WORKER_BASE_URL}/api/image/internal/lease",
+        headers={**headers, **scheduler.lease_headers()},
+    )
     if response.status_code == 204:
-        return False
+        return retry_after_seconds(
+            response.headers.get("X-Retry-After-Ms"),
+            POLL_SECONDS,
+        )
     response.raise_for_status()
     lease = response.json()
     job_id = lease["id"]
+    model = lease.get("model") or lease.get("spec", {}).get("metadata", {}).get("model")
+    log(
+        "job_leased",
+        jobId=job_id,
+        model=model,
+        currentModel=scheduler.current_model,
+        waiBurstCount=scheduler.wai_burst_count,
+        decision=lease.get("schedulerDecision"),
+    )
     lease_headers = {**headers, "X-Lease-Token": lease["leaseToken"]}
     heartbeat_task = asyncio.create_task(heartbeat_loop(client))
 
@@ -171,6 +197,9 @@ async def run_once(client: httpx.AsyncClient, gateway: httpx.AsyncClient) -> boo
         files["spec_json"] = (None, json.dumps(lease["spec"]), "application/json")
 
         generated = await generate(gateway, lease, files)
+        # 200 응답을 받았으면 ComfyUI가 해당 모델로 실제 생성을 마친 상태입니다.
+        # 업로드가 뒤에서 실패하더라도 GPU에 남아 있는 모델은 이 값이 맞습니다.
+        scheduler.record_completed_model(model)
 
         # 여기서부터는 그림이 이미 나온 뒤입니다. 업로드가 깨지면 그건 생성
         # 실패가 아니라 전달 실패라, 사유를 따로 남겨야 원인이 보입니다.
@@ -201,7 +230,7 @@ async def run_once(client: httpx.AsyncClient, gateway: httpx.AsyncClient) -> boo
             await report_failure(exc.reason)
         except Exception as report_error:
             log("fail_report_failed", jobId=job_id, detail=str(report_error)[:200])
-        return True
+        return 0
     except Exception as exc:
         # 무엇인지 모르는 것은 되돌립니다. 모르면 이용자에게 유리한 쪽으로.
         log("unexpected_error", jobId=job_id, error=type(exc).__name__, detail=str(exc)[:200])
@@ -215,7 +244,7 @@ async def run_once(client: httpx.AsyncClient, gateway: httpx.AsyncClient) -> boo
         await asyncio.gather(heartbeat_task, return_exceptions=True)
 
     log("job_completed", jobId=job_id)
-    return True
+    return 0
 
 
 async def heartbeat_loop(client: httpx.AsyncClient) -> None:
@@ -311,7 +340,15 @@ async def main() -> None:
     async with httpx.AsyncClient(follow_redirects=False, timeout=60) as client, \
             httpx.AsyncClient(transport=gateway_transport, timeout=60) as gateway:
         relay = asyncio.create_task(arca_relay_loop(client))
-        log("agent_started", uds=GATEWAY_UDS, worker=WORKER_BASE_URL, arcaRelay=True)
+        scheduler = SchedulerState()
+        log(
+            "agent_started",
+            uds=GATEWAY_UDS,
+            worker=WORKER_BASE_URL,
+            arcaRelay=True,
+            scheduler=SCHEDULER_VERSION,
+            preferredModel=ANIMA_MODEL,
+        )
         try:
             while True:
                 # 게이트웨이가 죽어 있으면 일감을 아예 안 가져옵니다.
@@ -324,9 +361,9 @@ async def main() -> None:
                     await asyncio.sleep(GATEWAY_DOWN_BACKOFF)
                     continue
                 try:
-                    worked = await run_once(client, gateway)
-                    if not worked:
-                        await asyncio.sleep(POLL_SECONDS)
+                    retry_in = await run_once(client, gateway, scheduler)
+                    if retry_in > 0:
+                        await asyncio.sleep(retry_in)
                 except Exception as exc:
                     log("worker_agent_error", error=type(exc).__name__, detail=str(exc)[:200])
                     await asyncio.sleep(min(POLL_SECONDS * 3, 15))

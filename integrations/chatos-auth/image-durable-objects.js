@@ -1,4 +1,9 @@
 import { DurableObject } from "cloudflare:workers";
+import {
+  ANIMA_MODEL,
+  WAI_MODEL,
+  chooseNextImageModel
+} from "./image-scheduler.js";
 
 const DAY_MS = 86_400_000;
 const LEASE_MS = 15 * 60_000;
@@ -207,6 +212,12 @@ export class ImageQueue extends DurableObject {
           value INTEGER NOT NULL
         );
       `);
+      const present = new Set(
+        this.ctx.storage.sql.exec("PRAGMA table_info(jobs)").toArray().map((row) => row.name)
+      );
+      if (!present.has("model")) {
+        this.ctx.storage.sql.exec("ALTER TABLE jobs ADD COLUMN model TEXT");
+      }
     });
   }
 
@@ -215,8 +226,8 @@ export class ImageQueue extends DurableObject {
     this.ctx.storage.sql.exec(
       `INSERT INTO jobs(
         id, account_id, status, cost_units, quota_day_key, quota_week_key,
-        spec, input_key, created_at, updated_at
-      ) VALUES (?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?)`,
+        spec, input_key, model, created_at, updated_at
+      ) VALUES (?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?)`,
       job.id,
       job.accountId,
       job.costUnits,
@@ -224,6 +235,7 @@ export class ImageQueue extends DurableObject {
       job.quotaWeekKey,
       JSON.stringify(job.spec),
       job.inputKey ?? null,
+      job.spec?.metadata?.model ?? null,
       now,
       now
     );
@@ -237,10 +249,73 @@ export class ImageQueue extends DurableObject {
       now
     );
     await this.#expireLeases(now);
-    const row = this.ctx.storage.sql.exec(
-      "SELECT * FROM jobs WHERE status = 'queued' ORDER BY created_at ASC LIMIT 1"
-    ).toArray()[0];
+    const row = this.#oldestEligible();
     if (!row) return null;
+    return this.#leaseRow(row, now);
+  }
+
+  async leaseScheduled({ currentModel = ANIMA_MODEL, waiBurstCount = 0 } = {}) {
+    const now = Date.now();
+    this.ctx.storage.sql.exec(
+      "INSERT INTO runtime(key, value) VALUES ('gpu_last_seen', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+      now
+    );
+    await this.#expireLeases(now);
+    const unknown = this.ctx.storage.sql.exec(
+      `SELECT * FROM jobs WHERE status = 'queued'
+       AND (model IS NULL OR model NOT IN (?, ?))
+       ORDER BY created_at ASC LIMIT 1`,
+      ANIMA_MODEL,
+      WAI_MODEL
+    ).toArray()[0] ?? null;
+    const anima = this.#oldestEligible(ANIMA_MODEL);
+    const wai = this.#oldestEligible(WAI_MODEL);
+    const waiCount = this.ctx.storage.sql.exec(
+      "SELECT COUNT(*) AS count FROM jobs WHERE status = 'queued' AND model = ?",
+      WAI_MODEL
+    ).toArray()[0]?.count ?? 0;
+    const decision = chooseNextImageModel({
+      currentModel,
+      waiBurstCount,
+      animaAvailable: Boolean(anima),
+      waiCount,
+      oldestWaiCreatedAt: wai?.created_at ?? null,
+      unknownAvailable: Boolean(unknown),
+      now
+    });
+    const row = decision.reason === "legacy_fifo"
+      ? unknown
+      : decision.model === WAI_MODEL
+        ? wai
+        : decision.model === ANIMA_MODEL
+          ? anima
+          : null;
+    if (!row) {
+      return {
+        lease: null,
+        retryAfterMs: decision.retryAfterMs,
+        decision: decision.reason
+      };
+    }
+    const lease = await this.#leaseRow(row, now);
+    return {
+      lease: { ...lease, schedulerDecision: decision.reason },
+      retryAfterMs: 0,
+      decision: decision.reason
+    };
+  }
+
+  #oldestEligible(model = null) {
+    const modelClause = model ? " AND model = ?" : "";
+    const params = model ? [model] : [];
+    return this.ctx.storage.sql.exec(
+      `SELECT * FROM jobs WHERE status = 'queued'${modelClause}
+       ORDER BY created_at ASC LIMIT 1`,
+      ...params
+    ).toArray()[0] ?? null;
+  }
+
+  async #leaseRow(row, now) {
     const token = crypto.randomUUID();
     const leaseUntil = now + LEASE_MS;
     this.ctx.storage.sql.exec(
@@ -259,6 +334,7 @@ export class ImageQueue extends DurableObject {
       quotaDayKey: row.quota_day_key,
       quotaWeekKey: row.quota_week_key,
       spec: JSON.parse(row.spec),
+      model: row.model ?? null,
       hasInput: Boolean(row.input_key),
       leaseToken: token,
       leaseUntil

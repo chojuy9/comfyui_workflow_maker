@@ -21,7 +21,7 @@ RUN git init "$COMFYUI_PATH" \
 WORKDIR /opt/gateway
 COPY requirements.txt .
 RUN /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
-COPY app.py comfy_client.py security.py token_guard.py worker_agent.py ./
+COPY app.py comfy_client.py security.py token_guard.py scheduler.py worker_agent.py ./
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 

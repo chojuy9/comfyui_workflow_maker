@@ -256,7 +256,25 @@ async function handleInternal(request, env) {
   if (!authorizedInternal(request, env)) return error("unauthorized", 401);
   const url = new URL(request.url);
   if (url.pathname === "/api/image/internal/lease" && request.method === "POST") {
-    const leased = await queue(env).lease();
+    const schedulerVersion = request.headers.get("X-Image-Scheduler") ?? "";
+    let leased;
+    if (schedulerVersion === "1") {
+      const currentModel = request.headers.get("X-Current-Model") ?? "anima_base_10";
+      const rawBurst = Number(request.headers.get("X-WAI-Burst-Count") ?? "0");
+      const scheduled = await queue(env).leaseScheduled({
+        currentModel,
+        waiBurstCount: Number.isFinite(rawBurst) ? Math.max(0, Math.min(100, rawBurst)) : 0
+      });
+      leased = scheduled.lease;
+      if (!leased) {
+        const headers = scheduled.retryAfterMs > 0
+          ? { "X-Retry-After-Ms": String(scheduled.retryAfterMs) }
+          : undefined;
+        return new Response(null, { status: 204, headers });
+      }
+    } else {
+      leased = await queue(env).lease();
+    }
     if (!leased) return new Response(null, { status: 204 });
     const running = await quota(env, leased.accountId).markRunning();
     if (!running.ok) {
