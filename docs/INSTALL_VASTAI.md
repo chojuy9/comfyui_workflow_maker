@@ -280,6 +280,16 @@ COMFYUI_PRECISION_MODE=fp8 chatos restart
 정밀도 선택은 파일에 저장하지 않습니다. 따라서 RTX 3090으로 돌아가거나 재부팅하면
 별도 설정 삭제 없이 다시 기존 정밀도로 실행됩니다.
 
+SageAttention이 설치돼 있고 CUDA 확장까지 정상 import되면 ComfyUI가 자동으로
+`--use-sage-attention`을 사용합니다. 설치되지 않았거나 import에 실패하면 기존
+PyTorch Attention으로 안전하게 돌아갑니다. 같은 seed 비교를 위해 강제로 선택할 수도
+있습니다.
+
+```bash
+COMFYUI_ATTENTION_MODE=pytorch chatos restart
+COMFYUI_ATTENTION_MODE=sage chatos restart
+```
+
 설치가 한 번 끝난 뒤 다음 명령으로 GPU·CUDA를 확인하고, Anima와 WAI를
 1024×1024·배치 1로 한 장씩 생성합니다. 테스트 중에는 에이전트를 끄므로 실제
 사용자 작업을 가져가지 않습니다.

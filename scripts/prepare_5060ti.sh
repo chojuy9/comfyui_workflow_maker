@@ -18,6 +18,7 @@ ready_marker="${CHATOS_5060TI_READY_MARKER:-/workspace/chatos-5060ti-ready}"
 smoke_csv="${CHATOS_5060TI_SMOKE_CSV:-/workspace/5060ti-smoke.csv}"
 command="${1:-all}"
 test_precision="${CHATOS_TEST_PRECISION:-default}"
+test_attention="${CHATOS_TEST_ATTENTION:-auto}"
 
 python_bin="$venv/bin/python"
 [[ -x "$python_bin" ]] || {
@@ -82,6 +83,7 @@ restart_service() {
   # 검증이 끝나고 재부팅하기 전에는 실제 사용자 작업을 가져가지 않습니다.
   export CHATOS_AGENT_DISABLED=1
   export COMFYUI_PRECISION_MODE="$test_precision"
+  export COMFYUI_ATTENTION_MODE="$test_attention"
   "$install_root/scripts/bootstrap_native.sh" restart
   for _ in $(seq 1 300); do
     if curl --fail --silent http://127.0.0.1:8188/system_stats >/dev/null; then
@@ -126,10 +128,40 @@ verify_precision() {
       return 1 ;;
   esac
 
+  expected_attention="$test_attention"
+  if [[ "$expected_attention" == "auto" ]]; then
+    if ( cd / && "$python_bin" -c 'import sageattention' >/dev/null 2>&1 ); then
+      expected_attention="sage"
+    else
+      expected_attention="pytorch"
+    fi
+  fi
+  case "$expected_attention" in
+    sage)
+      if ! pgrep -af 'ComfyUI/main.py' | grep -q -- '--use-sage-attention'; then
+        echo "FAIL: SageAttention이 설치됐지만 ComfyUI 실행 인자가 없습니다." >&2
+        return 1
+      fi
+      if ! grep -q -i 'Using sage attention' "$log_dir/comfyui.log"; then
+        echo "FAIL: ComfyUI 로그에서 SageAttention 활성화를 확인하지 못했습니다." >&2
+        tail -n 80 "$log_dir/comfyui.log" >&2 || true
+        return 1
+      fi ;;
+    pytorch)
+      if pgrep -af 'ComfyUI/main.py' | grep -q -- '--use-sage-attention'; then
+        echo "FAIL: PyTorch Attention 테스트인데 Sage 인자가 적용돼 있습니다." >&2
+        return 1
+      fi ;;
+    *)
+      echo "FAIL: CHATOS_TEST_ATTENTION은 auto, sage 또는 pytorch여야 합니다." >&2
+      return 1 ;;
+  esac
+
   {
     date -Is
     "$python_bin" -c 'import torch; print(torch.cuda.get_device_name(0)); print(torch.__version__, torch.version.cuda)'
     echo "PRECISION_MODE=$test_precision"
+    echo "ATTENTION_MODE=$expected_attention"
     echo "SMOKE_CSV=$smoke_csv"
   } > "$ready_marker"
   chmod 600 "$ready_marker"

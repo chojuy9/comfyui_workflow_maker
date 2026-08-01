@@ -57,6 +57,12 @@ except Exception as error:
 PY
 }
 
+sageattention_available() {
+  # 소스 체크아웃 안에서 실행하면 로컬 패키지가 설치본을 가릴 수 있으므로
+  # 중립 디렉터리에서 CUDA 확장까지 실제로 import해 확인합니다.
+  ( cd / && "$venv/bin/python" -c 'import sageattention' >/dev/null 2>&1 )
+}
+
 start_once() {
   log "ComfyUI 시작"
   comfy_args=(
@@ -77,6 +83,34 @@ start_once() {
     comfy_args+=(--fp8_e4m3fn-unet)
     log "FP8 diffusion weights 활성화"
   fi
+
+  attention_mode="${COMFYUI_ATTENTION_MODE:-auto}"
+  case "$attention_mode" in
+    auto)
+      if sageattention_available; then
+        attention_mode="sage"
+      else
+        attention_mode="pytorch"
+      fi ;;
+    sage)
+      if ! sageattention_available; then
+        log "SageAttention import 실패 — PyTorch attention으로 대체"
+        attention_mode="pytorch"
+      fi ;;
+    pytorch) ;;
+    *)
+      log "잘못된 COMFYUI_ATTENTION_MODE=$attention_mode — 자동 선택 사용"
+      if sageattention_available; then
+        attention_mode="sage"
+      else
+        attention_mode="pytorch"
+      fi ;;
+  esac
+  if [[ "$attention_mode" == "sage" ]]; then
+    comfy_args+=(--use-sage-attention)
+  fi
+  log "Attention 선택: $attention_mode"
+
   "$venv/bin/python" "$comfy_root/main.py" "${comfy_args[@]}" \
     >> "$log_dir/comfyui.log" 2>&1 &
   comfy_pid=$!
