@@ -37,11 +37,51 @@ trap 'cleanup; exit 0' INT TERM
 
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
 
+detect_precision_mode() {
+  "$venv/bin/python" - <<'PY'
+try:
+    import torch
+    if not torch.cuda.is_available():
+        print("default|CUDA unavailable|0|0.0")
+        raise SystemExit
+    props = torch.cuda.get_device_properties(0)
+    vram_gib = props.total_memory / 1024**3
+    capability = torch.cuda.get_device_capability(0)
+    # 제조사가 24GB로 표기하는 카드는 드라이버 예약분을 고려해 23GiB부터
+    # 기존 정밀도로 분류합니다. 16GB급 이하는 17GiB 이하로 잡습니다.
+    if vram_gib >= 23:
+        mode = "default"
+    elif vram_gib <= 17 and capability >= (8, 9):
+        mode = "fp8"
+    else:
+        mode = "default"
+    print(f"{mode}|{props.name}|{vram_gib:.2f}|{capability[0]}.{capability[1]}")
+except Exception as error:
+    print(f"default|detection failed: {error}|0|0.0")
+PY
+}
+
 start_once() {
   log "ComfyUI 시작"
-  "$venv/bin/python" "$comfy_root/main.py" \
-    --listen 127.0.0.1 --port 8188 \
-    --disable-auto-launch --preview-method none \
+  comfy_args=(
+    --listen 127.0.0.1 --port 8188
+    --disable-auto-launch --preview-method none
+  )
+  IFS='|' read -r detected_mode gpu_name gpu_vram gpu_capability \
+    < <(detect_precision_mode)
+  precision_mode="${COMFYUI_PRECISION_MODE:-$detected_mode}"
+  case "$precision_mode" in
+    fp8|default) ;;
+    *)
+      log "잘못된 COMFYUI_PRECISION_MODE=$precision_mode — 기존 정밀도 사용"
+      precision_mode="default" ;;
+  esac
+  log "GPU 감지: $gpu_name, ${gpu_vram}GiB, capability $gpu_capability, precision $precision_mode"
+  if [[ "$precision_mode" == "fp8" ]]; then
+    comfy_args+=(--fp8_e4m3fn-unet)
+    log "FP8 diffusion weights 활성화"
+  fi
+  "$venv/bin/python" "$comfy_root/main.py" "${comfy_args[@]}" \
     >> "$log_dir/comfyui.log" 2>&1 &
   comfy_pid=$!
 
@@ -74,6 +114,14 @@ start_once() {
   # 소켓은 기본 권한이 넉넉합니다. 같은 머신의 다른 사용자가 못 붙게 조입니다.
   chmod 600 "$GATEWAY_UDS" 2>/dev/null || true
   log "게이트웨이 준비됨"
+
+  if [[ "${CHATOS_AGENT_DISABLED:-0}" == "1" ]]; then
+    log "에이전트 비활성화 — 로컬 스모크 테스트 전용"
+    while kill -0 "$comfy_pid" 2>/dev/null && kill -0 "$gateway_pid" 2>/dev/null; do
+      sleep 5
+    done
+    return 1
+  fi
 
   log "에이전트 시작 — 여기서부터 chatos.page 의 일감을 가져옵니다"
   "$venv/bin/python" "$install_root/gateway/worker_agent.py" \

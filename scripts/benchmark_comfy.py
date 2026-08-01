@@ -150,6 +150,11 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-url", default="http://127.0.0.1:8188")
     parser.add_argument("--runs", type=int, default=3)
+    parser.add_argument(
+        "--smoke-only",
+        action="store_true",
+        help="Run one batch-1 request for Anima and WAI, then stop.",
+    )
     parser.add_argument("--output", default="/workspace/benchmark-results.csv")
     parser.add_argument(
         "--repo",
@@ -184,6 +189,16 @@ def main() -> int:
 
     # 운영 선호 순서와 동일하게 Anima를 먼저 예열합니다.
     measured("anima", "cold_or_switch", 1)
+    if args.smoke_only:
+        measured("wai", "switch_from_anima", 1)
+        output = Path(args.output)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        with output.open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+            writer.writeheader()
+            writer.writerows(rows)
+        print(f"RESULT_CSV={output}", flush=True)
+        return 1 if any(row["error"] for row in rows) else 0
     for index in range(args.runs):
         measured("anima", f"warm_{index + 1}", 1)
     measured("wai", "switch_from_anima", 1)

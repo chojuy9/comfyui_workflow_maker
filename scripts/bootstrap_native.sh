@@ -7,6 +7,7 @@
 #   사용법
 #     ./scripts/bootstrap_native.sh          설치하고 백그라운드로 실행
 #     ./scripts/bootstrap_native.sh status   상태 보기
+#     ./scripts/bootstrap_native.sh restart  설치 없이 다시 실행
 #     ./scripts/bootstrap_native.sh stop     정지
 #     ./scripts/bootstrap_native.sh logs     로그 따라가기
 set -euo pipefail
@@ -48,6 +49,16 @@ stop_run() {
 
   # 낡은 소켓 파일이 남아 있으면 다음 uvicorn 이 바인드에 실패합니다.
   rm -f "${GATEWAY_UDS:-/tmp/chatos-gateway.sock}" 2>/dev/null || true
+}
+
+start_run() {
+  mkdir -p "$log_dir"
+  chmod +x "$install_root/scripts/run_native.sh"
+  echo "== 실행 =="
+  setsid nohup "$install_root/scripts/run_native.sh" >> "$log_dir/run.log" 2>&1 &
+  echo $! > "$pid_file"
+  sleep 2
+  echo "백그라운드로 실행 중입니다 (pid $(cat "$pid_file"))"
 }
 
 # 설치 프로세스를 멈춥니다.
@@ -103,6 +114,18 @@ case "$command" in
   stop-run)
     # 설치 스크립트가 실행 직전에 쓰는 내부용입니다.
     stop_run
+    exit 0 ;;
+  restart)
+    missing=()
+    for name in WORKER_BASE_URL WORKER_API_TOKEN GATEWAY_TOKEN; do
+      [[ -z "${!name:-}" ]] && missing+=("$name")
+    done
+    if (( ${#missing[@]} )); then
+      echo "빠진 값: ${missing[*]}" >&2
+      exit 1
+    fi
+    stop_run
+    start_run
     exit 0 ;;
   logs)
     # 설치 중이면 설치 로그를, 다 됐으면 실행 로그를 보여줍니다.
@@ -196,14 +219,8 @@ python3 "$install_root/scripts/install_models.py" \
 # stop 이 아니라 stop_run 입니다. stop 은 설치 프로세스(=지금 이 스크립트)까지
 # 죽여서, 여기까지 와놓고 run_native.sh 를 못 띄우고 끝나버립니다.
 stop_run
-chmod +x "$install_root/scripts/run_native.sh"
-echo "== 실행 =="
-# setsid 로 떼어놓아서 SSH 를 끊어도 계속 돕니다.
-setsid nohup "$install_root/scripts/run_native.sh" >> "$log_dir/run.log" 2>&1 &
-echo $! > "$pid_file"
-sleep 2
+start_run
 echo
-echo "백그라운드로 실행 중입니다 (pid $(cat "$pid_file"))"
 echo "  상태  ./scripts/bootstrap_native.sh status"
 echo "  로그  ./scripts/bootstrap_native.sh logs"
 echo "  정지  ./scripts/bootstrap_native.sh stop"

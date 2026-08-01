@@ -265,6 +265,45 @@ Vast.ai 에 볼륨 기능이 있긴 한데, **볼륨은 만들어진 물리 머�
 
 > **24GB에서 OOM이 나면 batch는 1로 두고 ComfyUI의 VRAM 옵션을 조정하세요.** 기본 해상도나 이용자에게 열어둔 범위를 슬쩍 낮추면, 나중에 왜 결과가 예전 같지 않은지 아무도 못 찾습니다.
 
+### RTX 5060 Ti 16GB로 교체할 때
+
+ComfyUI를 시작할 때 GPU VRAM과 CUDA capability를 자동 감지합니다.
+
+| 감지 결과 | 정밀도 |
+|---|---|
+| 24GB급 이상(실측 23GiB 이상) | 기존 FP16/BF16 |
+| 16GB급 이하(실측 17GiB 이하) + Ada Lovelace 이상(capability 8.9 이상) | diffusion weights FP8 |
+| 그 사이 용량 또는 구형 GPU | 기존 FP16/BF16 |
+
+정밀도 선택은 파일에 저장하지 않고 시작할 때마다 다시 계산합니다. 따라서 5060 Ti
+16GB에서 RTX 3090 24GB로 돌아가도 별도 설정 삭제 없이 기존 정밀도로 실행됩니다.
+
+설치가 한 번 끝난 뒤 다음 명령으로 GPU·CUDA·FP8을 확인하고, Anima와 WAI를
+1024×1024·배치 1로 한 장씩 생성합니다. 테스트 중에는 에이전트를 끄므로 실제
+사용자 작업을 가져가지 않습니다.
+
+```bash
+bash /workspace/chatos-image/scripts/prepare_5060ti.sh all
+```
+
+CUDA 빌드가 너무 오래됐다는 오류가 나올 때만 PyTorch를 갱신하고 다시 실행합니다.
+
+```bash
+bash /workspace/chatos-image/scripts/prepare_5060ti.sh install-torch
+bash /workspace/chatos-image/scripts/prepare_5060ti.sh all
+```
+
+두 모델이 모두 통과하면 `/workspace/chatos-5060ti-ready`가 생깁니다. 그 뒤에만
+아래 재부팅 명령이 동작합니다. 재부팅 후에는 기존 Vast.ai On-start Script가
+GPU를 다시 감지하고 에이전트까지 포함한 정상 서빙을 시작합니다.
+
+```bash
+bash /workspace/chatos-image/scripts/prepare_5060ti.sh reboot --yes-reboot
+```
+
+Vast.ai 환경에 따라 컨테이너 안의 `reboot`가 허용되지 않을 수 있습니다. 그 경우
+성공 마커가 생성된 것을 확인한 뒤 Vast.ai 화면에서 인스턴스를 재시작하세요.
+
 ---
 
 ## 11. 관련 문서
