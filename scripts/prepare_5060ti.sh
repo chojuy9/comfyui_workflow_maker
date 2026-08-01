@@ -93,16 +93,23 @@ restart_service() {
   return 1
 }
 
-smoke_test() {
-  rm -f "$ready_marker"
-  "$python_bin" "$install_root/scripts/benchmark_comfy.py" \
-    --smoke-only --repo "$install_root" --output "$smoke_csv"
-
+verify_fp8() {
   if ! pgrep -af 'ComfyUI/main.py' | grep -q -- '--fp8_e4m3fn-unet'; then
     echo "FAIL: 실행 중인 ComfyUI 명령에서 FP8 인자를 찾지 못했습니다." >&2
     return 1
   fi
-  if ! grep -q 'fp8_e4m3fn' "$log_dir/comfyui.log"; then
+
+  # ComfyUI history 응답이 먼저 완료되고 stdout 로그 flush가 몇 초 늦을 수 있습니다.
+  # 즉시 grep하면 실제 FP8 생성이 성공했는데도 거짓 실패가 날 수 있어 기다립니다.
+  fp8_logged=0
+  for _ in $(seq 1 30); do
+    if grep -q 'model weight dtype torch.float8_e4m3fn' "$log_dir/comfyui.log"; then
+      fp8_logged=1
+      break
+    fi
+    sleep 1
+  done
+  if [[ "$fp8_logged" != "1" ]]; then
     echo "FAIL: ComfyUI 로그에서 FP8 로딩을 확인하지 못했습니다." >&2
     tail -n 80 "$log_dir/comfyui.log" >&2 || true
     return 1
@@ -117,6 +124,13 @@ smoke_test() {
   chmod 600 "$ready_marker"
   echo "PASS: Anima -> WAI, 1024x1024, batch 1"
   echo "재부팅 승인 마커: $ready_marker"
+}
+
+smoke_test() {
+  rm -f "$ready_marker"
+  "$python_bin" "$install_root/scripts/benchmark_comfy.py" \
+    --smoke-only --repo "$install_root" --output "$smoke_csv"
+  verify_fp8
 }
 
 install_torch() {
@@ -135,6 +149,9 @@ case "$command" in
   smoke)
     check_hardware
     smoke_test ;;
+  verify)
+    check_hardware
+    verify_fp8 ;;
   all)
     check_hardware
     restart_service
@@ -158,6 +175,6 @@ case "$command" in
     sync
     reboot ;;
   *)
-    echo "사용법: $0 {check|install-torch|enable|smoke|all|reboot --yes-reboot}" >&2
+    echo "사용법: $0 {check|install-torch|enable|smoke|verify|all|reboot --yes-reboot}" >&2
     exit 2 ;;
 esac
