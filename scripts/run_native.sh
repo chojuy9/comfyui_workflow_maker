@@ -47,14 +47,10 @@ try:
     props = torch.cuda.get_device_properties(0)
     vram_gib = props.total_memory / 1024**3
     capability = torch.cuda.get_device_capability(0)
-    # 제조사가 24GB로 표기하는 카드는 드라이버 예약분을 고려해 23GiB부터
-    # 기존 정밀도로 분류합니다. 16GB급 이하는 17GiB 이하로 잡습니다.
-    if vram_gib >= 23:
-        mode = "default"
-    elif vram_gib <= 17 and capability >= (8, 9):
-        mode = "fp8"
-    else:
-        mode = "default"
+    # 5060 Ti 16GB 실측에서 기본 정밀도도 충분히 들어갈 여유가 있었습니다.
+    # 품질 재현성을 우선해 모든 GPU는 기본 정밀도로 시작하고, 실제 OOM이
+    # 확인된 경우에만 COMFYUI_PRECISION_MODE=fp8로 명시적으로 낮춥니다.
+    mode = "default"
     print(f"{mode}|{props.name}|{vram_gib:.2f}|{capability[0]}.{capability[1]}")
 except Exception as error:
     print(f"default|detection failed: {error}|0|0.0")

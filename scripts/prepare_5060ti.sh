@@ -17,6 +17,7 @@ log_dir="${CHATOS_LOG_DIR:-/workspace/logs}"
 ready_marker="${CHATOS_5060TI_READY_MARKER:-/workspace/chatos-5060ti-ready}"
 smoke_csv="${CHATOS_5060TI_SMOKE_CSV:-/workspace/5060ti-smoke.csv}"
 command="${1:-all}"
+test_precision="${CHATOS_TEST_PRECISION:-default}"
 
 python_bin="$venv/bin/python"
 [[ -x "$python_bin" ]] || {
@@ -80,6 +81,7 @@ restart_service() {
   : "${GATEWAY_TOKEN:?GATEWAY_TOKEN 이 필요합니다}"
   # 검증이 끝나고 재부팅하기 전에는 실제 사용자 작업을 가져가지 않습니다.
   export CHATOS_AGENT_DISABLED=1
+  export COMFYUI_PRECISION_MODE="$test_precision"
   "$install_root/scripts/bootstrap_native.sh" restart
   for _ in $(seq 1 300); do
     if curl --fail --silent http://127.0.0.1:8188/system_stats >/dev/null; then
@@ -93,36 +95,45 @@ restart_service() {
   return 1
 }
 
-verify_fp8() {
-  if ! pgrep -af 'ComfyUI/main.py' | grep -q -- '--fp8_e4m3fn-unet'; then
-    echo "FAIL: 실행 중인 ComfyUI 명령에서 FP8 인자를 찾지 못했습니다." >&2
-    return 1
-  fi
-
-  # ComfyUI history 응답이 먼저 완료되고 stdout 로그 flush가 몇 초 늦을 수 있습니다.
-  # 즉시 grep하면 실제 FP8 생성이 성공했는데도 거짓 실패가 날 수 있어 기다립니다.
-  fp8_logged=0
-  for _ in $(seq 1 30); do
-    if grep -q 'model weight dtype torch.float8_e4m3fn' "$log_dir/comfyui.log"; then
-      fp8_logged=1
-      break
-    fi
-    sleep 1
-  done
-  if [[ "$fp8_logged" != "1" ]]; then
-    echo "FAIL: ComfyUI 로그에서 FP8 로딩을 확인하지 못했습니다." >&2
-    tail -n 80 "$log_dir/comfyui.log" >&2 || true
-    return 1
-  fi
+verify_precision() {
+  case "$test_precision" in
+    default)
+      if pgrep -af 'ComfyUI/main.py' | grep -q -- '--fp8_e4m3fn-unet'; then
+        echo "FAIL: 기본 정밀도 테스트인데 FP8 인자가 적용돼 있습니다." >&2
+        return 1
+      fi ;;
+    fp8)
+      if ! pgrep -af 'ComfyUI/main.py' | grep -q -- '--fp8_e4m3fn-unet'; then
+        echo "FAIL: FP8 테스트인데 FP8 인자를 찾지 못했습니다." >&2
+        return 1
+      fi
+      # history 응답보다 stdout flush가 늦을 수 있어 최대 30초 기다립니다.
+      fp8_logged=0
+      for _ in $(seq 1 30); do
+        if grep -q 'model weight dtype torch.float8_e4m3fn' "$log_dir/comfyui.log"; then
+          fp8_logged=1
+          break
+        fi
+        sleep 1
+      done
+      if [[ "$fp8_logged" != "1" ]]; then
+        echo "FAIL: ComfyUI 로그에서 FP8 로딩을 확인하지 못했습니다." >&2
+        tail -n 80 "$log_dir/comfyui.log" >&2 || true
+        return 1
+      fi ;;
+    *)
+      echo "FAIL: CHATOS_TEST_PRECISION은 default 또는 fp8이어야 합니다." >&2
+      return 1 ;;
+  esac
 
   {
     date -Is
     "$python_bin" -c 'import torch; print(torch.cuda.get_device_name(0)); print(torch.__version__, torch.version.cuda)'
-    echo "PRECISION_MODE=auto(fp8)"
+    echo "PRECISION_MODE=$test_precision"
     echo "SMOKE_CSV=$smoke_csv"
   } > "$ready_marker"
   chmod 600 "$ready_marker"
-  echo "PASS: Anima -> WAI, 1024x1024, batch 1"
+  echo "PASS: Anima -> WAI, 1024x1024, batch 1, precision $test_precision"
   echo "재부팅 승인 마커: $ready_marker"
 }
 
@@ -130,7 +141,7 @@ smoke_test() {
   rm -f "$ready_marker"
   "$python_bin" "$install_root/scripts/benchmark_comfy.py" \
     --smoke-only --repo "$install_root" --output "$smoke_csv"
-  verify_fp8
+  verify_precision
 }
 
 install_torch() {
@@ -151,7 +162,12 @@ case "$command" in
     smoke_test ;;
   verify)
     check_hardware
-    verify_fp8 ;;
+    verify_precision ;;
+  fp8)
+    test_precision="fp8"
+    check_hardware
+    restart_service
+    smoke_test ;;
   all)
     check_hardware
     restart_service
@@ -175,6 +191,6 @@ case "$command" in
     sync
     reboot ;;
   *)
-    echo "사용법: $0 {check|install-torch|enable|smoke|verify|all|reboot --yes-reboot}" >&2
+    echo "사용법: $0 {check|install-torch|enable|smoke|verify|fp8|all|reboot --yes-reboot}" >&2
     exit 2 ;;
 esac
